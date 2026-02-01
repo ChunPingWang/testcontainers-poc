@@ -3,13 +3,11 @@ package com.example.s2;
 import com.example.s2.domain.Customer;
 import com.example.s2.service.CacheService;
 import com.example.s2.service.CustomerService;
-import com.example.tc.base.IntegrationTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Optional;
@@ -29,9 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - Cache eviction
  */
 @SpringBootTest
-@Import(S2TestApplication.class)
 @ActiveProfiles("test")
-class RedisCacheIT extends IntegrationTestBase {
+class RedisCacheIT extends S2IntegrationTestBase {
 
     @Autowired
     private CustomerService customerService;

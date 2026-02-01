@@ -1,15 +1,15 @@
 package com.example.tc.containers;
 
-import org.testcontainers.kafka.KafkaContainer;
+import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
  * Factory for creating Kafka test containers.
- * Uses KRaft mode (no ZooKeeper required).
+ * Uses Confluent Kafka image for better compatibility with Docker Desktop.
  */
 public final class KafkaContainerFactory {
 
-    private static final String IMAGE = "apache/kafka:3.9.0";
+    private static final String IMAGE = "confluentinc/cp-kafka:7.6.0";
 
     private static final KafkaContainer INSTANCE = createContainer();
 
@@ -37,6 +37,7 @@ public final class KafkaContainerFactory {
 
     private static KafkaContainer createContainer() {
         return new KafkaContainer(DockerImageName.parse(IMAGE))
+            .withKraft()
             .withReuse(true);
     }
 }

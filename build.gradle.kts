@@ -11,6 +11,10 @@ allprojects {
 
     repositories {
         mavenCentral()
+        // Confluent repository for Kafka/Avro
+        maven {
+            url = uri("https://packages.confluent.io/maven/")
+        }
     }
 }
 
@@ -37,8 +41,15 @@ subprojects {
             showCauses = true
             showStackTraces = true
         }
-        // Testcontainers reuse support
+        // Testcontainers configuration
         environment("TESTCONTAINERS_REUSE_ENABLE", "true")
+        // Use docker.raw.sock for direct Docker VM access on Docker Desktop
+        val dockerRawSocket = "unix://${System.getProperty("user.home")}/Library/Containers/com.docker.docker/Data/docker.raw.sock"
+        environment("DOCKER_HOST", dockerRawSocket)
+        environment("DOCKER_API_VERSION", "1.44")
+        systemProperty("docker.host", dockerRawSocket)
+        systemProperty("docker.api.version", "1.44")
+        environment("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock")
     }
 
     tasks.jacocoTestReport {

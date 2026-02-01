@@ -1,9 +1,9 @@
-# Test profile configuration for S2 Multi-Store scenario
-# Container connection properties are set via System properties in S2TestApplication
+# Test profile configuration for S1 Core scenario
+# Container connection properties are set via @ServiceConnection in S1TestApplication
 
 spring:
   application:
-    name: scenario-s2-multistore-test
+    name: scenario-s1-core-test
 
   jpa:
     hibernate:
@@ -20,7 +20,5 @@ spring:
 
 logging:
   level:
-    com.example.s2: DEBUG
-    org.springframework.data.elasticsearch: DEBUG
-    org.springframework.data.redis: DEBUG
+    com.example.s1: DEBUG
     org.testcontainers: INFO

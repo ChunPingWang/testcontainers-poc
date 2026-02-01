@@ -607,9 +607,32 @@ flowchart LR
 ## 先決條件
 
 - Java 21+
-- Docker Engine 20.10+
+- Docker Engine 20.10+ 或 Docker Desktop 4.x+
 - Gradle 8.x
 - 本機至少 8GB RAM（執行完整測試套件）
+
+### macOS Docker Desktop 配置
+
+若使用 macOS Docker Desktop，需要配置 docker-java 以使用正確的 Docker socket 和 API 版本：
+
+```bash
+# 建立 ~/.docker-java.properties 檔案
+cat > ~/.docker-java.properties << 'EOF'
+api.version=1.44
+docker.host=unix:///Users/<your-username>/Library/Containers/com.docker.docker/Data/docker.raw.sock
+EOF
+```
+
+> **注意**：請將 `<your-username>` 替換為您的 macOS 使用者名稱，或使用以下命令自動設定：
+>
+> ```bash
+> cat > ~/.docker-java.properties << EOF
+> api.version=1.44
+> docker.host=unix://$HOME/Library/Containers/com.docker.docker/Data/docker.raw.sock
+> EOF
+> ```
+
+此配置解決 Docker Desktop 的 API 版本相容性問題。
 
 ## 快速開始
 

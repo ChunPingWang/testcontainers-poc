@@ -1,11 +1,9 @@
 package com.example.s2;
 
+import com.example.tc.base.IntegrationTestBase;
 import com.example.tc.containers.ElasticsearchContainerFactory;
 import com.example.tc.containers.PostgresContainerFactory;
 import com.example.tc.containers.RedisContainerFactory;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -13,18 +11,16 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
 
 /**
- * Test configuration for S2 Multi-Store scenario.
- * Provides PostgreSQL, Redis, and Elasticsearch containers.
+ * Base class for S2 Multi-Store integration tests.
+ * Provides container configuration with @DynamicPropertySource.
  */
-@TestConfiguration(proxyBeanMethods = false)
-public class S2TestApplication {
+public abstract class S2IntegrationTestBase extends IntegrationTestBase {
 
+    static final PostgreSQLContainer<?> POSTGRES_CONTAINER;
     static final GenericContainer<?> REDIS_CONTAINER;
     static final ElasticsearchContainer ELASTICSEARCH_CONTAINER;
-    static final PostgreSQLContainer<?> POSTGRES_CONTAINER;
 
     static {
-        // Initialize and start all containers
         POSTGRES_CONTAINER = PostgresContainerFactory.getInstance();
         POSTGRES_CONTAINER.start();
 
@@ -37,6 +33,11 @@ public class S2TestApplication {
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
+        // PostgreSQL properties
+        registry.add("spring.datasource.url", POSTGRES_CONTAINER::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES_CONTAINER::getUsername);
+        registry.add("spring.datasource.password", POSTGRES_CONTAINER::getPassword);
+
         // Redis properties
         registry.add("spring.data.redis.host", REDIS_CONTAINER::getHost);
         registry.add("spring.data.redis.port", () -> REDIS_CONTAINER.getMappedPort(6379));
@@ -44,30 +45,5 @@ public class S2TestApplication {
         // Elasticsearch properties
         registry.add("spring.elasticsearch.uris", () ->
             "http://" + ELASTICSEARCH_CONTAINER.getHost() + ":" + ELASTICSEARCH_CONTAINER.getMappedPort(9200));
-    }
-
-    /**
-     * PostgreSQL container with automatic Spring Boot configuration.
-     */
-    @Bean
-    @ServiceConnection
-    public PostgreSQLContainer<?> postgresContainer() {
-        return POSTGRES_CONTAINER;
-    }
-
-    /**
-     * Redis container bean for injection if needed.
-     */
-    @Bean
-    public GenericContainer<?> redisContainer() {
-        return REDIS_CONTAINER;
-    }
-
-    /**
-     * Elasticsearch container bean for injection if needed.
-     */
-    @Bean
-    public ElasticsearchContainer elasticsearchContainer() {
-        return ELASTICSEARCH_CONTAINER;
     }
 }

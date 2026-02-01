@@ -3,13 +3,11 @@ package com.example.s2;
 import com.example.s2.domain.Customer;
 import com.example.s2.service.CustomerService;
 import com.example.s2.service.SearchService;
-import com.example.tc.base.IntegrationTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -35,9 +33,8 @@ import static org.awaitility.Awaitility.await;
  * - Full-text search
  */
 @SpringBootTest
-@Import(S2TestApplication.class)
 @ActiveProfiles("test")
-class ElasticsearchSyncIT extends IntegrationTestBase {
+class ElasticsearchSyncIT extends S2IntegrationTestBase {
 
     private static final int SYNC_TIMEOUT_SECONDS = 5;
 

@@ -1,13 +1,11 @@
 package com.example.s2;
 
-import com.example.tc.base.IntegrationTestBase;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.MigrationInfoService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -22,9 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Then 所有遷移腳本按順序執行成功
  */
 @SpringBootTest
-@Import(S2TestApplication.class)
 @ActiveProfiles("test")
-class SchemaMigrationIT extends IntegrationTestBase {
+class SchemaMigrationIT extends S2IntegrationTestBase {
 
     @Autowired
     private Flyway flyway;

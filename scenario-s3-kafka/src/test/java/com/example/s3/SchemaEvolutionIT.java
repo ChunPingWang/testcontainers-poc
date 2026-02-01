@@ -111,9 +111,9 @@ class SchemaEvolutionIT extends BaseKafkaIT {
         assertThat(schemaRegistryClient.getLatestSchemaMetadata(subject).getVersion()).isEqualTo(2);
 
         // Verify compatibility
-        List<String> compatibilityIssues = schemaRegistryClient.testCompatibility(
+        boolean isCompatible = schemaRegistryClient.testCompatibility(
             subject, new AvroSchema(orderEventSchemaV2));
-        assertThat(compatibilityIssues).isEmpty();
+        assertThat(isCompatible).isTrue();
     }
 
     @Test
@@ -204,7 +204,7 @@ class SchemaEvolutionIT extends BaseKafkaIT {
 
         // When/Then - V2 with nullable new fields is backward compatible
         boolean isCompatible = schemaRegistryClient.testCompatibility(
-            subject, new AvroSchema(orderEventSchemaV2)).isEmpty();
+            subject, new AvroSchema(orderEventSchemaV2));
         assertThat(isCompatible).isTrue();
     }
 
@@ -232,9 +232,9 @@ class SchemaEvolutionIT extends BaseKafkaIT {
         Schema incompatibleSchema = new Schema.Parser().parse(incompatibleSchemaJson);
 
         // When/Then - Should not be compatible
-        List<String> compatibilityIssues = schemaRegistryClient.testCompatibility(
+        boolean isCompatible = schemaRegistryClient.testCompatibility(
             subject, new AvroSchema(incompatibleSchema));
-        assertThat(compatibilityIssues).isNotEmpty();
+        assertThat(isCompatible).isFalse();
     }
 
     @Test

@@ -13,9 +13,11 @@ dependencies {
     implementation(libs.bundles.database)
     runtimeOnly(libs.postgresql.driver)
 
+    // Shared DTOs
+    implementation(project(":tc-common"))
+
     // Test dependencies
     testImplementation(libs.bundles.spring.boot.test)
-    testImplementation(project(":tc-common"))
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.testcontainers.rabbitmq)
 }

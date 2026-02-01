@@ -12,8 +12,9 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.Network;
-import org.testcontainers.kafka.KafkaContainer;
+import org.testcontainers.utility.DockerImageName;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,11 +33,11 @@ public class S3TestApplication {
     private static final GenericContainer<?> SCHEMA_REGISTRY;
 
     static {
-        // Initialize Kafka with network
-        KAFKA = new KafkaContainer("apache/kafka:3.9.0")
+        // Initialize Kafka with network using Confluent Kafka image
+        KAFKA = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.6.0"))
+            .withKraft()
             .withNetwork(NETWORK)
-            .withNetworkAliases("kafka")
-            .withReuse(true);
+            .withNetworkAliases("kafka");
         KAFKA.start();
 
         // Initialize Schema Registry
