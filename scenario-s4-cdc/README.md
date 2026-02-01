@@ -28,11 +28,58 @@ ALTER TABLE transactions REPLICA IDENTITY FULL;
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    subgraph Test["🧪 測試容器環境"]
+        subgraph Source["資料源"]
+            PG[(PostgreSQL\nREPLICA IDENTITY FULL)]
+        end
+
+        subgraph Stream["事件流"]
+            Kafka[[Kafka\ncdc.transactions]]
+        end
+
+        subgraph Processor["處理器"]
+            CDC["CdcEventProcessor\n(Kafka Listener)"]
+        end
+    end
+
+    PG -->|"WAL\nChange Events"| Kafka
+    Kafka --> CDC
+
+    style Test fill:#f0f8ff,stroke:#4169e1
+    style Source fill:#ffe4e1,stroke:#cd5c5c
+    style Stream fill:#fff0f5,stroke:#dc143c
+    style Processor fill:#e0ffe0,stroke:#32cd32
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   PostgreSQL    │────▶│     Kafka       │────▶│ CdcEventProcessor│
-│  (Transactions) │     │ (CDC Events)    │     │  (Consumer)     │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
+
+### CDC 事件流程
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant DB as PostgreSQL
+    participant WAL as Write-Ahead Log
+    participant Kafka as Kafka Topic
+    participant Proc as CdcEventProcessor
+
+    App->>DB: INSERT transaction
+    DB->>WAL: Write change
+    WAL->>Kafka: CDC Event (op: INSERT)
+    Kafka->>Proc: Consume event
+    Note over Proc: after state only
+
+    App->>DB: UPDATE transaction
+    DB->>WAL: Write change
+    WAL->>Kafka: CDC Event (op: UPDATE)
+    Kafka->>Proc: Consume event
+    Note over Proc: before + after state
+
+    App->>DB: DELETE transaction
+    DB->>WAL: Write change
+    WAL->>Kafka: CDC Event (op: DELETE)
+    Kafka->>Proc: Consume event
+    Note over Proc: before state only
 ```
 
 In production, Debezium Connect sits between PostgreSQL and Kafka, automatically capturing changes from the WAL (Write-Ahead Log). For this PoC, we simulate CDC events to focus on testing the event processing logic.

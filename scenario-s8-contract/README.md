@@ -10,15 +10,58 @@ Contract testing ensures that services can communicate correctly by verifying th
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    subgraph Consumer["Consumer Side"]
+        CT["Consumer Test\n(OrderConsumerPactIT)"]
+        MS["MockServer"]
+    end
+
+    subgraph Contract["Contract"]
+        Pact["📄 Pact File\nOrderConsumer-OrderProvider.json"]
+    end
+
+    subgraph Provider["Provider Side"]
+        PT["Provider Test\n(OrderProviderPactIT)"]
+        SB["Spring Boot App"]
+    end
+
+    CT -->|"1. Define expectations"| MS
+    CT -->|"2. Generate"| Pact
+    Pact -->|"3. Load"| PT
+    PT -->|"4. Verify"| SB
+
+    style Consumer fill:#e3f2fd,stroke:#1976d2
+    style Contract fill:#fff9c4,stroke:#fbc02d
+    style Provider fill:#e8f5e9,stroke:#388e3c
 ```
-+----------------+       Pact File       +----------------+
-|    Consumer    |  ----------------->   |    Provider    |
-| (OrderConsumer)|                       | (OrderProvider)|
-+----------------+                       +----------------+
-        |                                        |
-        v                                        v
-  MockServer Test                         SpringBoot Test
-  (generates pact)                       (verifies pact)
+
+### 契約測試流程
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant Consumer as Consumer Test
+    participant Pact as Pact File
+    participant Provider as Provider Test
+    participant CI as CI/CD
+
+    Note over Consumer,Provider: Contract Testing Workflow
+
+    Dev->>Consumer: Write consumer expectations
+    Consumer->>Consumer: Run test with MockServer
+    Consumer->>Pact: Generate pact file
+
+    Dev->>Provider: Implement API
+    Provider->>Pact: Load contract
+    Provider->>Provider: Verify implementation
+
+    alt Contract Satisfied
+        Provider-->>CI: ✅ Build passes
+    else Contract Broken
+        Provider-->>CI: ❌ Build fails
+        CI-->>Dev: Notify contract violation
+    end
 ```
 
 ## Contract Specification

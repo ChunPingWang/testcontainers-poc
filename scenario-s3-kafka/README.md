@@ -139,25 +139,44 @@ This scenario uses the following factories from `tc-common`:
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph Test["🧪 測試容器環境"]
+        subgraph App["Spring Boot Application"]
+            Producer["OrderEventProducer\n(Avro Serializer)"]
+            Consumer["OrderEventConsumer\n(Avro Deserializer)"]
+        end
+
+        subgraph Containers["Testcontainers"]
+            Kafka["Kafka\n(KRaft Mode)\n3 Partitions"]
+            SR["Schema Registry\n(Avro Schemas)"]
+        end
+    end
+
+    Producer -->|"publish\n(orderId as key)"| Kafka
+    Kafka --> Consumer
+    Producer -.->|"register schema"| SR
+    Consumer -.->|"fetch schema"| SR
+
+    style Test fill:#f0f8ff,stroke:#4169e1
+    style App fill:#e6ffe6,stroke:#228b22
+    style Containers fill:#fff0f5,stroke:#dc143c
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Test Container                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌─────────────────┐        ┌─────────────────────────────┐     │
-│  │                 │        │                             │     │
-│  │  Order Event    │───────▶│    Kafka (KRaft mode)      │     │
-│  │  Producer       │        │    - Topic: order-events    │     │
-│  │                 │        │    - 3 partitions          │     │
-│  └─────────────────┘        │                             │     │
-│                             └──────────────┬──────────────┘     │
-│                                            │                     │
-│  ┌─────────────────┐                       │                     │
-│  │                 │                       ▼                     │
-│  │  Schema         │        ┌─────────────────────────────┐     │
-│  │  Registry       │◀──────│    Order Event Consumer     │     │
-│  │                 │        │                             │     │
-│  └─────────────────┘        └─────────────────────────────┘     │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+
+### Schema Evolution
+
+```mermaid
+flowchart LR
+    subgraph V1["Schema V1"]
+        V1F["orderId\ncustomerId\namount\nstatus\ntimestamp"]
+    end
+
+    subgraph V2["Schema V2 (Backward Compatible)"]
+        V2F["orderId\ncustomerId\namount\nstatus\ntimestamp\n+ productName (nullable)\n+ quantity (nullable)"]
+    end
+
+    V1 -->|"evolution"| V2
+
+    style V1 fill:#ffe4e1,stroke:#cd5c5c
+    style V2 fill:#e0ffe0,stroke:#32cd32
 ```

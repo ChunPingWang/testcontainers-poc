@@ -16,18 +16,57 @@ This scenario solves these problems using containerized emulators that provide A
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph Test["🧪 測試容器環境"]
+        subgraph App["Spring Boot Application"]
+            subgraph AWS["AWS Services"]
+                S3S["S3FileService"]
+                SQS["SqsMessageService"]
+                DDB["DynamoDbService"]
+            end
+            subgraph Azure["Azure Services"]
+                Blob["BlobStorageService"]
+            end
+        end
+
+        subgraph Containers["Cloud Emulators"]
+            LS["LocalStack\n(S3, SQS, DynamoDB)"]
+            AZ["Azurite\n(Blob Storage)"]
+        end
+    end
+
+    S3S --> LS
+    SQS --> LS
+    DDB --> LS
+    Blob --> AZ
+
+    style Test fill:#f0f8ff,stroke:#4169e1
+    style App fill:#e6ffe6,stroke:#228b22
+    style AWS fill:#ff9900,stroke:#cc7a00
+    style Azure fill:#0078d4,stroke:#005a9e
+    style Containers fill:#fff0f5,stroke:#dc143c
 ```
-+-------------------+     +-------------------+
-|   S3FileService   |     |  BlobStorageService|
-|  SqsMessageService|     +-------------------+
-|  DynamoDbService  |              |
-+-------------------+              |
-        |                          |
-        v                          v
-+-------------------+     +-------------------+
-|    LocalStack     |     |      Azurite      |
-| (S3, SQS, DynamoDB)|    |   (Blob Storage)  |
-+-------------------+     +-------------------+
+
+### 雲端服務對照
+
+```mermaid
+flowchart LR
+    subgraph Prod["🌐 Production"]
+        AWSP["AWS Cloud"]
+        AzureP["Azure Cloud"]
+    end
+
+    subgraph Test["🧪 Testing"]
+        LST["LocalStack Container"]
+        AZT["Azurite Container"]
+    end
+
+    AWSP -.->|"API Compatible"| LST
+    AzureP -.->|"API Compatible"| AZT
+
+    style Prod fill:#e8f5e9,stroke:#4caf50
+    style Test fill:#fff3e0,stroke:#ff9800
 ```
 
 ## Services

@@ -7,18 +7,64 @@ This scenario demonstrates integration testing with multiple data stores using T
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph Test["🧪 測試容器環境"]
+        subgraph App["Spring Boot Application"]
+            CS["CustomerService\n(Orchestrator)"]
+            Cache["CacheService"]
+            Search["SearchService"]
+            Repo["CustomerRepository"]
+        end
+
+        subgraph Containers["Testcontainers"]
+            PG[(PostgreSQL\n主資料庫)]
+            Redis[(Redis\n快取層)]
+            ES[(Elasticsearch\n搜尋引擎)]
+        end
+    end
+
+    CS --> Cache
+    CS --> Search
+    CS --> Repo
+
+    Repo --> PG
+    Cache --> Redis
+    Search --> ES
+
+    style Test fill:#f0f8ff,stroke:#4169e1
+    style App fill:#e6ffe6,stroke:#228b22
+    style Containers fill:#fff0f5,stroke:#dc143c
 ```
-                    +-----------------+
-                    | CustomerService |
-                    +--------+--------+
-                             |
-         +-------------------+-------------------+
-         |                   |                   |
-         v                   v                   v
-  +------+------+     +------+------+     +------+------+
-  | PostgreSQL  |     |    Redis    |     |Elasticsearch|
-  |  (Primary)  |     |   (Cache)   |     |  (Search)   |
-  +-------------+     +-------------+     +-------------+
+
+### 資料流程
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant CS as CustomerService
+    participant Cache as Redis
+    participant DB as PostgreSQL
+    participant ES as Elasticsearch
+
+    Note over CS,ES: Write-Through Pattern
+    C->>CS: createCustomer()
+    CS->>DB: save()
+    CS->>Cache: put()
+    CS->>ES: index()
+    CS-->>C: Customer Created
+
+    Note over CS,ES: Read-Through Pattern
+    C->>CS: getCustomer(id)
+    CS->>Cache: get(id)
+    alt Cache Hit
+        Cache-->>CS: cached data
+    else Cache Miss
+        CS->>DB: findById()
+        DB-->>CS: data
+        CS->>Cache: put()
+    end
+    CS-->>C: Customer Data
 ```
 
 ## Features

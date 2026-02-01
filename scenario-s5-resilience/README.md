@@ -128,24 +128,59 @@ resilience4j:
 
 ### State Transition Diagram
 
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+
+    CLOSED --> OPEN : failure rate >= 50%
+    CLOSED --> CLOSED : success / low failure rate
+
+    OPEN --> HALF_OPEN : wait duration elapsed
+    OPEN --> OPEN : requests fail fast (fallback)
+
+    HALF_OPEN --> CLOSED : test request succeeds
+    HALF_OPEN --> OPEN : test request fails
+
+    note right of CLOSED
+        正常狀態
+        所有請求通過
+    end note
+
+    note right of OPEN
+        熔斷狀態
+        所有請求使用 fallback
+    end note
+
+    note right of HALF_OPEN
+        半開狀態
+        允許少量測試請求
+    end note
 ```
-                    ┌─────────────────────────────────────────┐
-                    │                                         │
-                    ▼                                         │
-              ┌──────────┐                              ┌─────┴─────┐
-              │  CLOSED  │──── failure rate >= 50% ────▶│   OPEN    │
-              └────┬─────┘                              └─────┬─────┘
-                   │                                          │
-                   │                                          │ wait duration
-                   │                                          │ elapsed
-                   │                                          ▼
-                   │                                    ┌───────────┐
-                   │◀────── success ────────────────────│ HALF_OPEN │
-                   │                                    └─────┬─────┘
-                   │                                          │
-                   │                                          │ failure
-                   │                                          │
-                   └──────────────────────────────────────────┘
+
+### 系統架構
+
+```mermaid
+flowchart TB
+    subgraph Test["🧪 測試容器環境"]
+        subgraph App["Spring Boot Application"]
+            Client["ExternalApiClient\n@CircuitBreaker\n@Retry"]
+            Service["CreditCheckService"]
+        end
+
+        subgraph Containers["Testcontainers"]
+            WM["WireMock\n(Mock External API)"]
+            TP["Toxiproxy\n(Network Faults)"]
+        end
+    end
+
+    Service --> Client
+    Client -->|"HTTP Request"| TP
+    TP -->|"Proxy"| WM
+    TP -.->|"Inject Faults\n(latency, reset, timeout)"| WM
+
+    style Test fill:#f0f8ff,stroke:#4169e1
+    style App fill:#e6ffe6,stroke:#228b22
+    style Containers fill:#fff0f5,stroke:#dc143c
 ```
 
 ## Resilience Patterns

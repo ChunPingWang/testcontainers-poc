@@ -68,13 +68,63 @@ scenario-s1-core/
     └── OrderApiIT.java
 ```
 
+## 系統架構
+
+```mermaid
+flowchart TB
+    subgraph Test["🧪 測試容器環境"]
+        subgraph App["Spring Boot Application"]
+            Controller["OrderController\n(REST API)"]
+            Service["OrderService"]
+            Publisher["OrderEventPublisher"]
+            Consumer["OrderEventConsumer"]
+        end
+
+        subgraph Containers["Testcontainers"]
+            PG[(PostgreSQL\n16-alpine)]
+            MQ[[RabbitMQ\n3.13-management]]
+        end
+    end
+
+    Client([Client]) --> Controller
+    Controller --> Service
+    Service --> PG
+    Service --> Publisher
+    Publisher --> MQ
+    MQ --> Consumer
+    Consumer --> Service
+
+    style Test fill:#f0f8ff,stroke:#4169e1
+    style App fill:#e6ffe6,stroke:#228b22
+    style Containers fill:#fff0f5,stroke:#dc143c
+```
+
 ## 端對端流程
 
-1. 客戶端透過 REST API 建立訂單
-2. `OrderService` 將訂單儲存至 PostgreSQL
-3. `OrderEventPublisher` 發佈 `order.created` 事件至 RabbitMQ
-4. `OrderEventConsumer` 接收事件並將訂單狀態更新為 `CONFIRMED`
-5. 客戶端可透過 API 查詢更新後的訂單狀態
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API as OrderController
+    participant S as OrderService
+    participant DB as PostgreSQL
+    participant MQ as RabbitMQ
+    participant Consumer as OrderEventConsumer
+
+    C->>API: POST /api/orders
+    API->>S: createOrder()
+    S->>DB: save(order)
+    S->>MQ: publish("order.created")
+    API-->>C: 201 Created (PENDING)
+
+    MQ->>Consumer: receive event
+    Consumer->>S: confirmOrder()
+    S->>DB: update(CONFIRMED)
+
+    C->>API: GET /api/orders/{id}
+    API->>S: findById()
+    S->>DB: select
+    API-->>C: 200 OK (CONFIRMED)
+```
 
 ## 驗收標準
 

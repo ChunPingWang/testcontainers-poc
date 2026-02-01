@@ -129,37 +129,70 @@ GET /actuator/health - Health check endpoint
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    subgraph Test["🧪 測試容器環境"]
+        subgraph Containers["Security Containers"]
+            KC["Keycloak\nOAuth2/OIDC Provider"]
+            Vault["HashiCorp Vault\nSecrets Management"]
+        end
+
+        subgraph App["Spring Boot Application"]
+            SC["SecurityConfig\n(JWT Validator)"]
+            OC["SecuredOrderController\n(USER role)"]
+            AC["AdminController\n(ADMIN role)"]
+        end
+    end
+
+    Client([Client]) -->|"1. Login"| KC
+    KC -->|"2. JWT Token"| Client
+    Client -->|"3. Request + JWT"| SC
+    SC -->|"4. Validate JWT"| KC
+    SC --> OC
+    SC --> AC
+    App -.->|"Dynamic Credentials"| Vault
+
+    style Test fill:#f0f8ff,stroke:#4169e1
+    style App fill:#e6ffe6,stroke:#228b22
+    style Containers fill:#fff0f5,stroke:#dc143c
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Test Environment                         │
-│                                                              │
-│  ┌──────────────┐         ┌──────────────┐                  │
-│  │   Keycloak   │         │    Vault     │                  │
-│  │  Container   │         │  Container   │                  │
-│  │              │         │              │                  │
-│  │ - Realm      │         │ - KV Store   │                  │
-│  │ - Users      │         │ - Policies   │                  │
-│  │ - Roles      │         │ - Secrets    │                  │
-│  └──────┬───────┘         └──────┬───────┘                  │
-│         │                        │                           │
-│         │ JWT Token              │ Dynamic Credentials       │
-│         │                        │                           │
-│         v                        v                           │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │              Spring Boot Application                 │    │
-│  │                                                      │    │
-│  │  ┌────────────────┐  ┌────────────────────────┐     │    │
-│  │  │ SecurityConfig │  │ SecuredOrderController │     │    │
-│  │  │ (JWT Validator)│  │ (USER role required)   │     │    │
-│  │  └────────────────┘  └────────────────────────┘     │    │
-│  │                                                      │    │
-│  │  ┌────────────────────────────────────────────┐     │    │
-│  │  │          AdminController                    │     │    │
-│  │  │         (ADMIN role required)               │     │    │
-│  │  └────────────────────────────────────────────┘     │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+
+### OAuth2 認證流程
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant KC as Keycloak
+    participant App as Spring Boot
+    participant API as Protected API
+
+    C->>KC: POST /token (username, password)
+    KC-->>C: Access Token (JWT)
+
+    C->>App: GET /api/orders (Authorization: Bearer <token>)
+    App->>KC: Validate JWT (JWKS)
+    KC-->>App: Token Valid + Claims
+
+    alt Has USER role
+        App->>API: Process Request
+        API-->>C: 200 OK
+    else Missing role
+        App-->>C: 403 Forbidden
+    end
+```
+
+### 角色階層
+
+```mermaid
+flowchart TB
+    ADMIN["ADMIN Role"] --> USER["USER Role"]
+
+    ADMIN -->|"access"| AdminAPI["/api/admin/**"]
+    ADMIN -->|"access"| OrderAPI["/api/orders/**"]
+    USER -->|"access"| OrderAPI
+
+    style ADMIN fill:#ff6b6b,stroke:#c92a2a
+    style USER fill:#4dabf7,stroke:#1971c2
 ```
 
 ## Security Best Practices Demonstrated
