@@ -5,6 +5,15 @@
 **Status**: Draft
 **Input**: PRD.md - Testcontainers Integration Testing PoC for Enterprise Financial Systems
 
+## Clarifications
+
+### Session 2026-02-01
+
+- Q: 測試容器在同一測試類別內的多個測試方法間應如何管理？ → A: 同一測試類別共享容器（類別間隔離，效率較佳）
+- Q: 當整合測試失敗時，系統應自動收集哪些診斷資訊？ → A: 完整診斷包（容器日誌、網路狀態、資源使用量）
+- Q: CI 環境中 Testcontainers 應採用哪種 Docker 存取策略？ → A: 兩者皆支援（DinD 與 socket 掛載），依 CI 平台自動選擇
+- Q: CI 環境應如何管理容器映像？ → A: 使用內部 registry 快取（穩定性佳，避免外部 registry 限流）
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - 本機執行單一場景測試 (Priority: P1)
@@ -218,12 +227,13 @@
 
 - **FR-001**: 系統 MUST 提供獨立的測試模組，每個模組可單獨執行測試
 - **FR-002**: 系統 MUST 在測試開始時自動啟動所需的容器
-- **FR-003**: 系統 MUST 在測試結束後自動清理容器資源
+- **FR-003**: 系統 MUST 在測試類別結束後自動清理容器資源（同一測試類別內的測試方法共享容器實例）
 - **FR-004**: 系統 MUST 提供共用模組供各場景模組重用容器定義與測試基底類別
 - **FR-005**: 系統 MUST 支援資料庫 Schema 自動遷移
 - **FR-006**: 系統 MUST 支援訊息佇列的事件發佈與消費測試
 - **FR-007**: 系統 MUST 支援多儲存層（主資料庫、快取、搜尋索引）的整合測試
 - **FR-008**: 系統 MUST 確保各測試之間資料隔離，無互相干擾
+- **FR-008a**: 系統 MUST 在測試失敗時自動收集完整診斷資訊（容器日誌、網路狀態、資源使用量）
 
 **Phase 2: 事件驅動與韌性**
 
@@ -272,7 +282,7 @@
 - 開發人員本機已安裝 Docker Engine 20.10 或以上版本
 - 本機至少有 8GB RAM 可供執行完整測試套件
 - 團隊使用 Java 21 與 Spring Boot 3.4.x 作為主要開發技術
-- CI 環境支援 Docker-in-Docker 或 Docker socket 掛載
+- CI 環境支援 Docker-in-Docker 或 Docker socket 掛載（系統自動偵測並選擇適當策略）
 - 容器映像可從公開容器註冊中心下載
 
 ## Out of Scope
