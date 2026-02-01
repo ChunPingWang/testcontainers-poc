@@ -1,0 +1,22 @@
+# Test profile configuration for S2 Multi-Store scenario
+# Container connection properties are set via System properties in S2TestApplication
+
+spring:
+  application:
+    name: scenario-s2-multistore-test
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+logging:
+  level:
+    com.example.s2: DEBUG
+    org.springframework.data.elasticsearch: DEBUG
+    org.springframework.data.redis: DEBUG
+    org.testcontainers: INFO

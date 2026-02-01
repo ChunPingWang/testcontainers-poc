@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: s6-security
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Keycloak issuer URI - will be overridden in tests
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/testcontainers-poc}
+          # JWK Set URI for token validation
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8080/realms/testcontainers-poc/protocol/openid-connect/certs}
+
+  # Vault configuration (optional)
+  cloud:
+    vault:
+      enabled: ${VAULT_ENABLED:false}
+      uri: ${VAULT_URI:http://localhost:8200}
+      token: ${VAULT_TOKEN:}
+      kv:
+        enabled: true
+        backend: secret
+
+# Server configuration
+server:
+  port: ${SERVER_PORT:8080}
+
+# Logging
+logging:
+  level:
+    com.example.s6: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: DEBUG
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+---
+# Test profile
+spring:
+  config:
+    activate:
+      on-profile: test
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # These will be dynamically set by the test configuration
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI}
+
+logging:
+  level:
+    com.example.s6: DEBUG
+    org.testcontainers: INFO

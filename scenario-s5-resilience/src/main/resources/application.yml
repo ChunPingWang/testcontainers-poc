@@ -1,0 +1,91 @@
+spring:
+  application:
+    name: scenario-s5-resilience
+
+server:
+  port: 8080
+
+# External API configuration
+external:
+  api:
+    base-url: http://localhost:8081
+
+# Resilience4j Configuration
+resilience4j:
+  # Circuit Breaker Configuration
+  circuitbreaker:
+    instances:
+      creditCheck:
+        # Sliding window configuration
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 5
+        minimumNumberOfCalls: 3
+        # Failure thresholds
+        failureRateThreshold: 50
+        slowCallRateThreshold: 80
+        slowCallDurationThreshold: 2s
+        # State transitions
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 2
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        # Record failures
+        recordExceptions:
+          - com.example.s5.client.ExternalServiceException
+          - org.springframework.web.client.RestClientException
+          - java.io.IOException
+        ignoreExceptions:
+          - java.lang.IllegalArgumentException
+      healthCheck:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 3
+        minimumNumberOfCalls: 2
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: 1
+
+  # Retry Configuration
+  retry:
+    instances:
+      creditCheck:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - com.example.s5.client.ExternalServiceException
+          - org.springframework.web.client.RestClientException
+          - java.io.IOException
+        ignoreExceptions:
+          - java.lang.IllegalArgumentException
+      healthCheck:
+        maxAttempts: 2
+        waitDuration: 300ms
+
+  # Time Limiter Configuration (for timeout handling)
+  timelimiter:
+    instances:
+      creditCheck:
+        timeoutDuration: 3s
+        cancelRunningFuture: true
+      healthCheck:
+        timeoutDuration: 2s
+
+# Logging Configuration
+logging:
+  level:
+    com.example.s5: DEBUG
+    io.github.resilience4j: DEBUG
+    org.springframework.web.client: INFO
+
+# Actuator endpoints for monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,circuitbreakers,retries
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true

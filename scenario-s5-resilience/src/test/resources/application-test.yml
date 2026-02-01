@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: scenario-s5-resilience-test
+
+# External API configuration - will be overridden by @DynamicPropertySource
+external:
+  api:
+    base-url: http://localhost:8081
+
+# Resilience4j Configuration for Testing
+# Some values may be overridden in individual tests
+resilience4j:
+  circuitbreaker:
+    instances:
+      creditCheck:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 5
+        minimumNumberOfCalls: 3
+        failureRateThreshold: 50
+        slowCallRateThreshold: 80
+        slowCallDurationThreshold: 2s
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 2
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordExceptions:
+          - com.example.s5.client.ExternalServiceException
+          - org.springframework.web.client.RestClientException
+          - java.io.IOException
+      healthCheck:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 3
+        minimumNumberOfCalls: 2
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: 1
+
+  retry:
+    instances:
+      creditCheck:
+        maxAttempts: 3
+        waitDuration: 500ms
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - com.example.s5.client.ExternalServiceException
+          - org.springframework.web.client.RestClientException
+          - java.io.IOException
+      healthCheck:
+        maxAttempts: 2
+        waitDuration: 300ms
+
+  timelimiter:
+    instances:
+      creditCheck:
+        timeoutDuration: 3s
+        cancelRunningFuture: true
+      healthCheck:
+        timeoutDuration: 2s
+
+# Logging Configuration
+logging:
+  level:
+    com.example.s5: DEBUG
+    io.github.resilience4j: DEBUG
+    org.springframework.web.client: DEBUG
+    org.testcontainers: INFO

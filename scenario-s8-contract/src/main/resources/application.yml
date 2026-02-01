@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: scenario-s8-contract
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.example.s8: DEBUG

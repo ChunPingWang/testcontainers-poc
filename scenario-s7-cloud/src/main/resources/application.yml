@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: scenario-s7-cloud
+
+# AWS Configuration (defaults for local development)
+aws:
+  endpoint: ""
+  region: us-east-1
+  access-key-id: test
+  secret-access-key: test
+
+# Azure Configuration
+azure:
+  storage:
+    connection-string: ""
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.example.s7: DEBUG
+    software.amazon.awssdk: INFO
+    com.azure.storage: INFO
