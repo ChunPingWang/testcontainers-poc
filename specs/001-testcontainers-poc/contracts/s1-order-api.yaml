@@ -1,0 +1,192 @@
+openapi: 3.0.3
+info:
+  title: S1 Order API
+  description: 訂單管理 API - 用於 Testcontainers PoC S1 場景
+  version: 1.0.0
+  contact:
+    name: Testcontainers PoC Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /api/orders:
+    post:
+      summary: 建立訂單
+      operationId: createOrder
+      tags:
+        - Orders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: 訂單建立成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '400':
+          description: 請求格式錯誤
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      summary: 查詢所有訂單
+      operationId: listOrders
+      tags:
+        - Orders
+      parameters:
+        - name: status
+          in: query
+          description: 依狀態篩選
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - name: page
+          in: query
+          description: 頁碼 (從 0 開始)
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          description: 每頁筆數
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: 訂單列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderListResponse'
+
+  /api/orders/{orderId}:
+    get:
+      summary: 查詢單一訂單
+      operationId: getOrder
+      tags:
+        - Orders
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 訂單詳情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '404':
+          description: 訂單不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateOrderRequest:
+      type: object
+      required:
+        - customerName
+        - productName
+        - quantity
+        - amount
+      properties:
+        customerName:
+          type: string
+          maxLength: 100
+          example: "金控客戶"
+        productName:
+          type: string
+          maxLength: 200
+          example: "信用卡服務"
+        quantity:
+          type: integer
+          minimum: 1
+          example: 2
+        amount:
+          type: number
+          format: double
+          minimum: 0
+          example: 25000.00
+
+    OrderResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        customerName:
+          type: string
+          example: "金控客戶"
+        productName:
+          type: string
+          example: "信用卡服務"
+        quantity:
+          type: integer
+          example: 2
+        amount:
+          type: number
+          format: double
+          example: 25000.00
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OrderListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderResponse'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    OrderStatus:
+      type: string
+      enum:
+        - PENDING
+        - CONFIRMED
+        - SHIPPED
+        - DELIVERED
+        - CANCELLED
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "NOT_FOUND"
+        message:
+          type: string
+          example: "Order not found"
+        timestamp:
+          type: string
+          format: date-time
