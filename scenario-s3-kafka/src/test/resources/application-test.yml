@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: scenario-s3-kafka-test
+
+  kafka:
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    consumer:
+      group-id: order-event-consumer-group-test
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: io.confluent.kafka.serializers.KafkaAvroDeserializer
+      properties:
+        specific.avro.reader: false
+
+app:
+  kafka:
+    topics:
+      order-events: order-events
+
+logging:
+  level:
+    com.example.s3: DEBUG
+    org.apache.kafka: WARN
+    org.testcontainers: INFO
+    io.confluent: WARN

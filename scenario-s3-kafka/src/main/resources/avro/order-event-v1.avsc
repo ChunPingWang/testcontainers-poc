@@ -1,0 +1,37 @@
+{
+  "type": "record",
+  "name": "OrderEvent",
+  "namespace": "com.example.s3.avro",
+  "doc": "Order event schema version 1",
+  "fields": [
+    {
+      "name": "orderId",
+      "type": "string",
+      "doc": "Unique order identifier"
+    },
+    {
+      "name": "customerId",
+      "type": "string",
+      "doc": "Customer identifier"
+    },
+    {
+      "name": "amount",
+      "type": "double",
+      "doc": "Order amount"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "OrderStatus",
+        "symbols": ["CREATED", "CONFIRMED", "SHIPPED", "DELIVERED", "CANCELLED"]
+      },
+      "doc": "Order status"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "doc": "Event timestamp in milliseconds since epoch"
+    }
+  ]
+}

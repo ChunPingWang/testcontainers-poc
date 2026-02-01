@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: s6-security-test
+
+  # Vault disabled in tests by default
+  cloud:
+    vault:
+      enabled: false
+
+# Logging for tests
+logging:
+  level:
+    com.example.s6: DEBUG
+    org.springframework.security: DEBUG
+    org.testcontainers: INFO
+    org.keycloak: INFO
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

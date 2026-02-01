@@ -1,0 +1,310 @@
+name: CI
+
+on:
+  push:
+    branches: [main, '001-testcontainers-poc']
+  pull_request:
+    branches: [main]
+
+env:
+  JAVA_VERSION: '21'
+  GRADLE_OPTS: '-Dorg.gradle.daemon=false'
+
+jobs:
+  # Detect which modules have changed
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      tc-common: ${{ steps.filter.outputs.tc-common }}
+      s1-core: ${{ steps.filter.outputs.s1-core }}
+      s2-multistore: ${{ steps.filter.outputs.s2-multistore }}
+      s3-kafka: ${{ steps.filter.outputs.s3-kafka }}
+      s4-cdc: ${{ steps.filter.outputs.s4-cdc }}
+      s5-resilience: ${{ steps.filter.outputs.s5-resilience }}
+      s6-security: ${{ steps.filter.outputs.s6-security }}
+      s7-cloud: ${{ steps.filter.outputs.s7-cloud }}
+      s8-contract: ${{ steps.filter.outputs.s8-contract }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            tc-common:
+              - 'tc-common/**'
+              - 'gradle/**'
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+            s1-core:
+              - 'scenario-s1-core/**'
+              - 'tc-common/**'
+            s2-multistore:
+              - 'scenario-s2-multistore/**'
+              - 'tc-common/**'
+            s3-kafka:
+              - 'scenario-s3-kafka/**'
+              - 'tc-common/**'
+            s4-cdc:
+              - 'scenario-s4-cdc/**'
+              - 'tc-common/**'
+            s5-resilience:
+              - 'scenario-s5-resilience/**'
+              - 'tc-common/**'
+            s6-security:
+              - 'scenario-s6-security/**'
+              - 'tc-common/**'
+            s7-cloud:
+              - 'scenario-s7-cloud/**'
+              - 'tc-common/**'
+            s8-contract:
+              - 'scenario-s8-contract/**'
+              - 'tc-common/**'
+
+  # Build and test tc-common
+  tc-common:
+    needs: changes
+    if: ${{ needs.changes.outputs.tc-common == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Build tc-common
+        run: ./gradlew :tc-common:build
+
+  # S1: Core (PostgreSQL + RabbitMQ)
+  s1-core:
+    needs: [changes, tc-common]
+    if: ${{ always() && needs.changes.outputs.s1-core == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Pre-pull Docker images
+        run: |
+          docker pull postgres:16-alpine &
+          docker pull rabbitmq:3.13-management-alpine &
+          wait
+      - name: Test S1
+        run: ./gradlew :scenario-s1-core:test
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s1-core-test-reports
+          path: scenario-s1-core/build/reports/tests/
+
+  # S2: Multi-Store (PostgreSQL + Redis + Elasticsearch)
+  s2-multistore:
+    needs: [changes, tc-common]
+    if: ${{ always() && needs.changes.outputs.s2-multistore == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Pre-pull Docker images
+        run: |
+          docker pull postgres:16-alpine &
+          docker pull redis:7-alpine &
+          docker pull docker.elastic.co/elasticsearch/elasticsearch:8.13.0 &
+          wait
+      - name: Test S2
+        run: ./gradlew :scenario-s2-multistore:test
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s2-multistore-test-reports
+          path: scenario-s2-multistore/build/reports/tests/
+
+  # S3: Kafka + Schema Registry
+  s3-kafka:
+    needs: [changes, tc-common]
+    if: ${{ always() && needs.changes.outputs.s3-kafka == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Pre-pull Docker images
+        run: |
+          docker pull apache/kafka:3.9.0 &
+          wait
+      - name: Test S3
+        run: ./gradlew :scenario-s3-kafka:test
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s3-kafka-test-reports
+          path: scenario-s3-kafka/build/reports/tests/
+
+  # S4: CDC (PostgreSQL + Kafka + Debezium)
+  s4-cdc:
+    needs: [changes, tc-common]
+    if: ${{ always() && needs.changes.outputs.s4-cdc == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Pre-pull Docker images
+        run: |
+          docker pull postgres:16-alpine &
+          docker pull apache/kafka:3.9.0 &
+          wait
+      - name: Test S4
+        run: ./gradlew :scenario-s4-cdc:test
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s4-cdc-test-reports
+          path: scenario-s4-cdc/build/reports/tests/
+
+  # S5: Resilience (WireMock + Toxiproxy)
+  s5-resilience:
+    needs: [changes, tc-common]
+    if: ${{ always() && needs.changes.outputs.s5-resilience == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Pre-pull Docker images
+        run: |
+          docker pull wiremock/wiremock:3.5.2 &
+          docker pull ghcr.io/shopify/toxiproxy:2.9.0 &
+          wait
+      - name: Test S5
+        run: ./gradlew :scenario-s5-resilience:test
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s5-resilience-test-reports
+          path: scenario-s5-resilience/build/reports/tests/
+
+  # S6: Security (Keycloak + Vault)
+  s6-security:
+    needs: [changes, tc-common]
+    if: ${{ always() && needs.changes.outputs.s6-security == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Pre-pull Docker images
+        run: |
+          docker pull quay.io/keycloak/keycloak:24.0 &
+          docker pull hashicorp/vault:1.16 &
+          wait
+      - name: Test S6
+        run: ./gradlew :scenario-s6-security:test
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s6-security-test-reports
+          path: scenario-s6-security/build/reports/tests/
+
+  # S7: Cloud (LocalStack + Azurite)
+  s7-cloud:
+    needs: [changes, tc-common]
+    if: ${{ always() && needs.changes.outputs.s7-cloud == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Pre-pull Docker images
+        run: |
+          docker pull localstack/localstack:3.4 &
+          docker pull mcr.microsoft.com/azure-storage/azurite:3.30.0 &
+          wait
+      - name: Test S7
+        run: ./gradlew :scenario-s7-cloud:test
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s7-cloud-test-reports
+          path: scenario-s7-cloud/build/reports/tests/
+
+  # S8: Contract (Pact)
+  s8-contract:
+    needs: [changes, tc-common]
+    if: ${{ always() && needs.changes.outputs.s8-contract == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Test S8
+        run: ./gradlew :scenario-s8-contract:test
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: s8-contract-test-reports
+          path: scenario-s8-contract/build/reports/tests/
+
+  # Aggregated coverage report
+  coverage:
+    needs: [s1-core, s2-multistore, s3-kafka, s4-cdc, s5-resilience, s6-security, s7-cloud, s8-contract]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+      - name: Generate aggregated coverage report
+        run: ./gradlew jacocoAggregatedReport || true
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: build/reports/jacoco/aggregated/
