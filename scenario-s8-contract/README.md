@@ -1,14 +1,32 @@
-# S8 - Contract Testing with Pact
+# Scenario S8: 契約測試 (Contract Testing with Pact)
 
-This scenario demonstrates **Consumer-Driven Contract Testing** using Pact 4.6.x with JUnit 5.
+## 學習目標
 
-## Overview
+完成本場景後，您將學會：
+- 理解消費者驅動契約測試（Consumer-Driven Contract Testing）
+- 使用 Pact 定義 API 契約
+- 實作 Consumer 測試生成 Pact 檔案
+- 實作 Provider 測試驗證契約
+- 使用 State Handlers 設定測試狀態
 
-Contract testing ensures that services can communicate correctly by verifying that:
-1. **Consumers** document their expectations in a contract (Pact file)
-2. **Providers** implement APIs that satisfy those expectations
+## 環境需求
 
-## Architecture
+- Java 21+
+- Docker Desktop（可選，本場景不需要容器）
+- Gradle 8.x
+
+## 概述
+
+契約測試是一種確保服務間通訊正確的測試方法：
+- **Consumer** 定義其對 Provider API 的期望
+- **Provider** 驗證其實作滿足這些期望
+- **契約** 作為兩者間的協議文件
+
+這種方法特別適合微服務架構，可以獨立測試各服務而不需要完整的整合環境。
+
+## 核心概念
+
+### 1. 契約測試流程
 
 ```mermaid
 flowchart LR
@@ -36,7 +54,15 @@ flowchart LR
     style Provider fill:#e8f5e9,stroke:#388e3c
 ```
 
-### 契約測試流程
+### 2. Consumer-Driven 的好處
+
+- **快速回饋** - 早期發現整合問題
+- **獨立測試** - Consumer 和 Provider 可分開測試
+- **文件化** - Pact 檔案即 API 文件
+- **版本控制** - 契約可追蹤和管理
+- **CI/CD 整合** - 易於整合到建置流程
+
+### 3. Pact 工作流程
 
 ```mermaid
 sequenceDiagram
@@ -64,13 +90,57 @@ sequenceDiagram
     end
 ```
 
-## Contract Specification
+## 教學步驟
+
+### 步驟 1：理解專案結構
+
+```
+scenario-s8-contract/
+├── src/main/java/com/example/s8/
+│   ├── S8Application.java
+│   ├── controller/
+│   │   └── OrderController.java      # REST API
+│   ├── domain/
+│   │   └── Order.java                # 訂單實體
+│   └── service/
+│       └── OrderService.java         # 訂單服務
+├── src/main/resources/
+│   └── application.yml
+└── src/test/java/com/example/s8/
+    ├── OrderConsumerPactIT.java      # Consumer 契約測試（生成 Pact）
+    └── OrderProviderPactIT.java      # Provider 契約測試（驗證 Pact）
+```
+
+### 步驟 2：執行 Consumer 測試（生成 Pact）
+
+```bash
+# 先執行 Consumer 測試生成 Pact 檔案
+./gradlew :scenario-s8-contract:test --tests "*OrderConsumerPactIT"
+```
+
+Pact 檔案生成於：`build/pacts/OrderConsumer-OrderProvider.json`
+
+### 步驟 3：執行 Provider 測試（驗證 Pact）
+
+```bash
+# 執行 Provider 測試驗證實作
+./gradlew :scenario-s8-contract:test --tests "*OrderProviderPactIT"
+```
+
+### 步驟 4：執行所有測試
+
+```bash
+# 完整執行（Consumer 必須先於 Provider）
+./gradlew :scenario-s8-contract:test
+```
+
+## 契約規格
 
 ### GET /api/orders/{id}
 
-Returns an order by ID.
+取得訂單詳情。
 
-**Response (200 OK):**
+**成功回應 (200 OK):**
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -79,20 +149,20 @@ Returns an order by ID.
 }
 ```
 
-**Response (404 Not Found):** When order does not exist.
+**找不到 (404 Not Found):** 訂單不存在時。
 
 ### POST /api/orders
 
-Creates a new order.
+建立新訂單。
 
-**Request:**
+**請求:**
 ```json
 {
   "customerName": "John Doe"
 }
 ```
 
-**Response (201 Created):**
+**成功回應 (201 Created):**
 ```json
 {
   "id": "generated-uuid",
@@ -101,71 +171,92 @@ Creates a new order.
 }
 ```
 
-## Test Files
+## 程式碼範例
 
-| File | Description |
-|------|-------------|
-| `OrderConsumerPactIT.java` | Consumer test that generates the Pact file |
-| `OrderProviderPactIT.java` | Provider test that verifies the contract |
-
-## Running Tests
-
-### 1. Generate Pact File (Consumer Test)
-
-Run the consumer test to generate the Pact file:
-
-```bash
-./gradlew :scenario-s8-contract:test --tests "*OrderConsumerPactIT"
-```
-
-The Pact file is generated at: `build/pacts/OrderConsumer-OrderProvider.json`
-
-### 2. Verify Contract (Provider Test)
-
-Run the provider test to verify the implementation:
-
-```bash
-./gradlew :scenario-s8-contract:test --tests "*OrderProviderPactIT"
-```
-
-### 3. Run All Tests
-
-```bash
-./gradlew :scenario-s8-contract:test
-```
-
-**Note:** Consumer tests must run before provider tests to generate the Pact file.
-
-## Key Concepts
-
-### Consumer Test (`OrderConsumerPactIT`)
-
-- Uses `@ExtendWith(PactConsumerTestExt.class)` for Pact JUnit 5 support
-- `@Pact` methods define expected interactions
-- `@PactTestFor` links tests to specific Pact definitions
-- `MockServer` simulates the provider during consumer tests
-
-### Provider Test (`OrderProviderPactIT`)
-
-- Uses `@SpringBootTest` with `RANDOM_PORT` for embedded server
-- `@Provider` identifies the provider name (must match consumer's expectation)
-- `@PactFolder` points to the generated Pact files
-- `@State` methods set up test data for each interaction state
-
-### State Handlers
-
-Provider states allow the provider to set up specific test scenarios:
+### Consumer 測試
 
 ```java
-@State("an order with ID xxx exists")
-void setupOrderExists() {
-    // Add the expected order to the service
+@ExtendWith(PactConsumerTestExt.class)
+@PactTestFor(providerName = "OrderProvider")
+class OrderConsumerPactIT {
+
+    // 定義期望的互動
+    @Pact(consumer = "OrderConsumer")
+    public V4Pact getOrderByIdPact(PactDslWithProvider builder) {
+        return builder
+            .given("an order with ID 550e8400-e29b-41d4-a716-446655440000 exists")
+            .uponReceiving("a request to get an order by ID")
+                .path("/api/orders/550e8400-e29b-41d4-a716-446655440000")
+                .method("GET")
+            .willRespondWith()
+                .status(200)
+                .body(new PactDslJsonBody()
+                    .stringType("id", "550e8400-e29b-41d4-a716-446655440000")
+                    .stringType("customerName", "John Doe")
+                    .stringType("status", "PENDING"))
+            .toPact(V4Pact.class);
+    }
+
+    @Test
+    @PactTestFor(pactMethod = "getOrderByIdPact")
+    void shouldGetOrderById(MockServer mockServer) {
+        // Given
+        RestTemplate restTemplate = new RestTemplate();
+
+        // When
+        ResponseEntity<Order> response = restTemplate.getForEntity(
+            mockServer.getUrl() + "/api/orders/550e8400-e29b-41d4-a716-446655440000",
+            Order.class
+        );
+
+        // Then
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody().getCustomerName()).isEqualTo("John Doe");
+    }
 }
 ```
 
-## Pact File Structure
+### Provider 測試
 
-Generated Pact files follow this structure:
+```java
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Provider("OrderProvider")
+@PactFolder("build/pacts")
+class OrderProviderPactIT {
+
+    @Autowired
+    private OrderService orderService;
+
+    @LocalServerPort
+    private int port;
+
+    @BeforeEach
+    void setUp(PactVerificationContext context) {
+        context.setTarget(new HttpTestTarget("localhost", port));
+    }
+
+    @TestTemplate
+    @ExtendWith(PactVerificationInvocationContextProvider.class)
+    void verifyPact(PactVerificationContext context) {
+        context.verifyInteraction();
+    }
+
+    // State Handler - 設定測試狀態
+    @State("an order with ID 550e8400-e29b-41d4-a716-446655440000 exists")
+    void setupOrderExists() {
+        UUID orderId = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
+        Order order = new Order(orderId, "John Doe", "PENDING");
+        orderService.save(order);
+    }
+
+    @State("no order exists")
+    void setupNoOrder() {
+        orderService.clear();
+    }
+}
+```
+
+## Pact 檔案結構
 
 ```json
 {
@@ -179,33 +270,98 @@ Generated Pact files follow this structure:
       ],
       "request": {
         "method": "GET",
-        "path": "/api/orders/xxx"
+        "path": "/api/orders/550e8400-e29b-41d4-a716-446655440000"
       },
       "response": {
         "status": 200,
-        "body": { "id": "...", "customerName": "...", "status": "..." }
+        "headers": { "Content-Type": "application/json" },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "customerName": "John Doe",
+          "status": "PENDING"
+        }
       }
     }
-  ]
+  ],
+  "metadata": {
+    "pactSpecification": { "version": "4.0" }
+  }
 }
 ```
 
-## Benefits of Contract Testing
+## 測試類別說明
 
-1. **Fast Feedback** - Detect integration issues early without deploying
-2. **Independent Testing** - Consumer and provider can be tested separately
-3. **Documentation** - Pact files serve as API documentation
-4. **Version Control** - Contracts can be versioned and tracked
-5. **CI/CD Integration** - Easily integrate into build pipelines
+### OrderConsumerPactIT - Consumer 契約測試
 
-## Dependencies
+| 測試案例 | 說明 |
+|----------|------|
+| `getOrderByIdPact` | 定義取得訂單的期望 |
+| `createOrderPact` | 定義建立訂單的期望 |
+| `getOrderNotFoundPact` | 定義 404 回應的期望 |
+| `shouldGetOrderById` | 驗證 Mock 回應正確 |
+| `shouldCreateOrder` | 驗證建立流程 |
 
-- `au.com.dius.pact.consumer:junit5:4.6.x` - Consumer Pact testing
-- `au.com.dius.pact.provider:junit5:4.6.x` - Provider Pact testing
-- Spring Boot 3.4.x with embedded web server
+### OrderProviderPactIT - Provider 契約測試
 
-## Next Steps
+| State Handler | 說明 |
+|---------------|------|
+| `setupOrderExists` | 設定訂單存在的狀態 |
+| `setupNoOrder` | 設定無訂單的狀態 |
+| `verifyPact` | 驗證所有契約互動 |
 
-- Integrate with a Pact Broker for contract sharing
-- Add more complex contract scenarios (headers, query parameters)
-- Implement versioning strategy for contracts
+## 常見問題
+
+### Q1: Pact 檔案未生成
+**問題**: Consumer 測試執行後無 Pact 檔案
+**解決**: 確認 `@ExtendWith(PactConsumerTestExt.class)` 已加入
+
+### Q2: Provider 驗證失敗
+**問題**: Provider 測試找不到 Pact 檔案
+**解決**: 確認 `@PactFolder` 路徑正確，且 Consumer 測試已先執行
+
+### Q3: State Handler 未執行
+**問題**: Provider 測試未設定預期狀態
+**解決**: 確認 `@State` 名稱與 Pact 中的 `providerStates.name` 完全一致
+
+### Q4: 欄位匹配失敗
+**問題**: 回應欄位不符合契約
+**解決**: 使用 `stringType()` 等 matcher 允許型別匹配而非精確值匹配
+
+## 進階主題
+
+### 使用 Pact Broker
+
+在團隊協作中，可使用 Pact Broker 集中管理契約：
+
+```java
+@PactBroker(
+    host = "pact-broker.example.com",
+    authentication = @PactBrokerAuth(token = "${PACT_BROKER_TOKEN}")
+)
+class OrderProviderPactIT { ... }
+```
+
+### Webhook 整合
+
+Pact Broker 可在契約變更時觸發 Provider 驗證：
+
+1. Consumer 發佈新契約
+2. Broker 通知 Provider CI/CD
+3. Provider 自動執行驗證
+4. 結果回報給 Broker
+
+## 驗收標準
+
+- ✅ Consumer 測試生成有效 Pact 檔案
+- ✅ Provider 測試成功驗證契約
+- ✅ State Handlers 正確設定測試狀態
+- ✅ 契約涵蓋成功和錯誤場景
+- ✅ 測試可重複執行
+
+## 延伸學習
+
+- [S1-Core](../scenario-s1-core/): 基礎整合測試
+- [Pact 官方文件](https://docs.pact.io/)
+- [Pact JVM](https://github.com/pact-foundation/pact-jvm)
+- [Consumer-Driven Contracts](https://martinfowler.com/articles/consumerDrivenContracts.html)
+- [Pact Broker](https://docs.pact.io/pact_broker)

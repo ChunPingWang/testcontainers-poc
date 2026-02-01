@@ -1,163 +1,141 @@
-# Scenario S5: Resilience Testing with WireMock and Toxiproxy
+# Scenario S5: 韌性測試 (Resilience Testing)
 
-This module demonstrates resilience testing patterns using Testcontainers with WireMock for API mocking and Toxiproxy for network fault injection.
+## 學習目標
 
-## Overview
+完成本場景後，您將學會：
+- 使用 WireMock 模擬外部 API 回應
+- 使用 Toxiproxy 注入網路故障
+- 實作 Circuit Breaker（熔斷器）模式
+- 實作 Retry（重試）和 Fallback（降級）模式
+- 測試系統在故障情況下的行為
 
-The S5 Resilience scenario validates the application's ability to handle external service failures gracefully. It implements and tests:
+## 環境需求
 
-- **Circuit Breaker Pattern**: Prevents cascade failures when external services are unavailable
-- **Retry Pattern**: Handles transient failures with exponential backoff
-- **Fallback Pattern**: Provides graceful degradation when services fail
-- **Timeout Handling**: Properly handles slow responses
+- Java 21+
+- Docker Desktop
+- Gradle 8.x
 
-## Technologies Used
+## 概述
 
-| Technology | Purpose |
-|------------|---------|
-| WireMock | Mock external HTTP APIs for testing |
-| Toxiproxy | Simulate network faults (latency, disconnects, timeouts) |
-| Resilience4j | Implement circuit breaker, retry, and fallback patterns |
-| Spring Boot 3.4.x | Application framework |
-| Testcontainers | Manage test containers lifecycle |
+S5 場景驗證應用程式在外部服務失敗時的韌性能力，包含：
+- **Circuit Breaker**: 防止連鎖失敗
+- **Retry**: 處理暫時性故障
+- **Fallback**: 提供優雅降級
+- **Timeout**: 處理慢回應
 
-## Project Structure
+這是微服務架構中必備的韌性模式，確保單一服務失敗不會導致整個系統崩潰。
+
+## 技術元件
+
+| 元件 | 容器映像 | 用途 |
+|------|----------|------|
+| WireMock | wiremock/wiremock:3.4.2 | 模擬外部 API |
+| Toxiproxy | ghcr.io/shopify/toxiproxy:2.9.0 | 注入網路故障 |
+
+## 核心概念
+
+### 1. Circuit Breaker（熔斷器）
+
+熔斷器有三種狀態：
+
+```mermaid
+stateDiagram-v2
+    [*] --> CLOSED
+    CLOSED --> OPEN : 失敗率 >= 50%
+    CLOSED --> CLOSED : 成功 / 低失敗率
+    OPEN --> HALF_OPEN : 等待時間結束
+    OPEN --> OPEN : 請求快速失敗
+    HALF_OPEN --> CLOSED : 測試請求成功
+    HALF_OPEN --> OPEN : 測試請求失敗
+```
+
+### 2. WireMock 模擬
+
+模擬外部 API 的各種回應：
+
+```java
+// 成功回應
+wireMock.stubFor(get(urlPathEqualTo("/api/credit/" + customerId))
+    .willReturn(okJson("""
+        {"customerId": "%s", "approved": true, "limit": 10000}
+        """.formatted(customerId))));
+
+// 服務器錯誤
+wireMock.stubFor(get(urlPathEqualTo("/api/credit/" + customerId))
+    .willReturn(serverError()));
+
+// 延遲回應
+wireMock.stubFor(get(urlPathEqualTo("/api/credit/" + customerId))
+    .willReturn(ok().withFixedDelay(5000)));  // 5秒延遲
+```
+
+### 3. Toxiproxy 故障注入
+
+模擬真實網路故障：
+
+```java
+// 網路延遲
+proxy.toxics().latency("latency", ToxicDirection.DOWNSTREAM, 3000);
+
+// 連線重置
+proxy.toxics().resetPeer("reset", ToxicDirection.DOWNSTREAM, 0);
+
+// 連線逾時
+proxy.toxics().timeout("timeout", ToxicDirection.DOWNSTREAM, 5000);
+
+// 頻寬限制
+proxy.toxics().bandwidth("bandwidth", ToxicDirection.DOWNSTREAM, 1024);
+```
+
+## 教學步驟
+
+### 步驟 1：理解專案結構
 
 ```
 scenario-s5-resilience/
 ├── src/main/java/com/example/s5/
-│   ├── S5Application.java                 # Spring Boot application
+│   ├── S5Application.java
 │   ├── client/
-│   │   ├── ExternalApiClient.java         # HTTP client with resilience annotations
-│   │   ├── ExternalServiceException.java  # Custom exception
+│   │   ├── ExternalApiClient.java      # HTTP Client（含韌性註解）
+│   │   ├── ExternalServiceException.java
 │   │   └── dto/
-│   │       └── CreditCheckResponse.java   # API response DTO
+│   │       └── CreditCheckResponse.java
 │   ├── service/
-│   │   ├── CreditCheckService.java        # Business logic service
+│   │   ├── CreditCheckService.java     # 業務邏輯服務
 │   │   └── dto/
-│   │       └── CreditDecision.java        # Decision DTO
+│   │       └── CreditDecision.java
 │   └── config/
-│       └── ResilienceConfig.java          # Resilience4j configuration
+│       └── ResilienceConfig.java
 ├── src/main/resources/
-│   └── application.yml                    # Application and Resilience4j config
+│   └── application.yml                  # Resilience4j 配置
 └── src/test/java/com/example/s5/
-    ├── S5TestApplication.java             # Test configuration
-    ├── WireMockApiIT.java                 # API mocking tests
-    ├── ToxiproxyFaultIT.java              # Network fault injection tests
-    └── CircuitBreakerIT.java              # Circuit breaker state transition tests
+    ├── S5TestApplication.java
+    ├── WireMockApiIT.java               # API 模擬測試
+    ├── ToxiproxyFaultIT.java            # 網路故障測試
+    └── CircuitBreakerIT.java            # 熔斷器狀態測試
 ```
 
-## Running Tests
+### 步驟 2：執行測試
 
 ```bash
-# Run all S5 tests
+# 執行所有 S5 測試
 ./gradlew :scenario-s5-resilience:test
 
-# Run specific test class
+# 執行特定測試類別
 ./gradlew :scenario-s5-resilience:test --tests "WireMockApiIT"
 ./gradlew :scenario-s5-resilience:test --tests "ToxiproxyFaultIT"
 ./gradlew :scenario-s5-resilience:test --tests "CircuitBreakerIT"
 ```
 
-## Test Scenarios
+### 步驟 3：觀察韌性行為
 
-### WireMockApiIT - External API Mocking
+1. 正常回應 → 直接返回結果
+2. 服務錯誤 → 觸發 Fallback
+3. 連續失敗 → Circuit Breaker 開啟
+4. 等待後 → Circuit Breaker 半開，允許測試請求
+5. 測試成功 → Circuit Breaker 關閉
 
-Tests external API interactions using WireMock:
-
-| Test | Description |
-|------|-------------|
-| `shouldReturnApprovedCreditOnSuccess` | Verifies successful credit check |
-| `shouldReturnDeniedCreditWhenApiReturnsDenied` | Verifies denied credit response |
-| `shouldUseFallbackOnServerError` | Verifies fallback on 500 error |
-| `shouldUseFallbackOnServiceUnavailable` | Verifies fallback on 503 error |
-| `shouldHandleDelayAndUseFallback` | Verifies timeout handling |
-| `shouldHandle404AsError` | Verifies 404 handling |
-| `shouldEvaluateCreditDecisionBasedOnAmount` | Verifies credit limit evaluation |
-| `shouldApproveCreditWhenAmountWithinLimit` | Verifies successful approval |
-
-### ToxiproxyFaultIT - Network Fault Injection
-
-Tests network failure scenarios using Toxiproxy:
-
-| Test | Description |
-|------|-------------|
-| `shouldHandleNetworkLatencyWithinTimeout` | Handles acceptable latency |
-| `shouldUseFallbackWhenLatencyExceedsTimeout` | Fallback on timeout |
-| `shouldUseFallbackOnConnectionReset` | Handles connection reset |
-| `shouldUseFallbackOnConnectionTimeout` | Handles connection timeout |
-| `shouldHandleBandwidthLimitation` | Handles slow network |
-| `shouldRecoverAfterNetworkIssueResolved` | Recovery after fault cleared |
-| `shouldHandleIntermittentNetworkIssues` | Handles jitter/intermittent faults |
-| `shouldReportCorrectDecisionUsingFallback` | Correct decision on fallback |
-
-### CircuitBreakerIT - Circuit Breaker State Transitions
-
-Tests circuit breaker behavior:
-
-| Test | Description |
-|------|-------------|
-| `circuitBreakerShouldStartClosed` | Initial state is CLOSED |
-| `circuitBreakerShouldStayClosedOnSuccess` | Stays CLOSED on success |
-| `circuitBreakerShouldOpenAfterConsecutiveFailures` | CLOSED -> OPEN on failures |
-| `circuitBreakerShouldUseFallbackWhenOpen` | Uses fallback when OPEN |
-| `circuitBreakerShouldTransitionToHalfOpen` | OPEN -> HALF_OPEN after wait |
-| `circuitBreakerShouldCloseFromHalfOpenOnSuccess` | HALF_OPEN -> CLOSED on success |
-| `circuitBreakerShouldReturnToOpenFromHalfOpenOnFailure` | HALF_OPEN -> OPEN on failure |
-| `circuitBreakerMetricsShouldBeAccurate` | Metrics are correctly tracked |
-| `shouldBeAbleToManuallyResetCircuitBreaker` | Manual reset works |
-| `circuitBreakerShouldHandleMixedScenarios` | Mixed success/failure handling |
-
-## Circuit Breaker Configuration
-
-The circuit breaker is configured with the following parameters:
-
-```yaml
-resilience4j:
-  circuitbreaker:
-    instances:
-      creditCheck:
-        slidingWindowType: COUNT_BASED
-        slidingWindowSize: 5
-        minimumNumberOfCalls: 3
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10s
-        permittedNumberOfCallsInHalfOpenState: 2
-        automaticTransitionFromOpenToHalfOpenEnabled: true
-```
-
-### State Transition Diagram
-
-```mermaid
-stateDiagram-v2
-    [*] --> CLOSED
-
-    CLOSED --> OPEN : failure rate >= 50%
-    CLOSED --> CLOSED : success / low failure rate
-
-    OPEN --> HALF_OPEN : wait duration elapsed
-    OPEN --> OPEN : requests fail fast (fallback)
-
-    HALF_OPEN --> CLOSED : test request succeeds
-    HALF_OPEN --> OPEN : test request fails
-
-    note right of CLOSED
-        正常狀態
-        所有請求通過
-    end note
-
-    note right of OPEN
-        熔斷狀態
-        所有請求使用 fallback
-    end note
-
-    note right of HALF_OPEN
-        半開狀態
-        允許少量測試請求
-    end note
-```
-
-### 系統架構
+## 系統架構
 
 ```mermaid
 flowchart TB
@@ -183,80 +161,174 @@ flowchart TB
     style Containers fill:#fff0f5,stroke:#dc143c
 ```
 
-## Resilience Patterns
+## 測試類別說明
 
-### 1. Circuit Breaker
+### WireMockApiIT - API 模擬測試
 
-Prevents cascade failures by failing fast when the error rate exceeds a threshold.
+| 測試案例 | 說明 |
+|----------|------|
+| `shouldReturnApprovedCreditOnSuccess` | 成功回應處理 |
+| `shouldReturnDeniedCreditWhenApiReturnsDenied` | 拒絕回應處理 |
+| `shouldUseFallbackOnServerError` | 500 錯誤觸發 Fallback |
+| `shouldUseFallbackOnServiceUnavailable` | 503 錯誤觸發 Fallback |
+| `shouldHandleDelayAndUseFallback` | 逾時觸發 Fallback |
+| `shouldHandle404AsError` | 404 錯誤處理 |
+
+### ToxiproxyFaultIT - 網路故障測試
+
+| 測試案例 | 說明 |
+|----------|------|
+| `shouldHandleNetworkLatencyWithinTimeout` | 可接受延遲內成功 |
+| `shouldUseFallbackWhenLatencyExceedsTimeout` | 延遲超時觸發 Fallback |
+| `shouldUseFallbackOnConnectionReset` | 連線重置觸發 Fallback |
+| `shouldUseFallbackOnConnectionTimeout` | 連線逾時觸發 Fallback |
+| `shouldHandleBandwidthLimitation` | 頻寬限制處理 |
+| `shouldRecoverAfterNetworkIssueResolved` | 故障恢復後正常運作 |
+| `shouldHandleIntermittentNetworkIssues` | 間歇性網路問題處理 |
+
+### CircuitBreakerIT - 熔斷器測試
+
+| 測試案例 | 說明 |
+|----------|------|
+| `shouldStartClosed` | 初始狀態為 CLOSED |
+| `shouldStayClosedOnSuccess` | 成功時保持 CLOSED |
+| `shouldOpenAfterConsecutiveFailures` | 連續失敗後開啟 |
+| `shouldUseFallbackWhenOpen` | OPEN 時使用 Fallback |
+| `shouldTransitionToHalfOpen` | 等待後轉為 HALF_OPEN |
+| `shouldCloseFromHalfOpenOnSuccess` | HALF_OPEN 成功後關閉 |
+| `shouldReturnToOpenFromHalfOpenOnFailure` | HALF_OPEN 失敗後開啟 |
+| `shouldTrackMetrics` | 指標追蹤正確 |
+
+## 程式碼範例
+
+### Resilience4j 配置
+
+```yaml
+resilience4j:
+  circuitbreaker:
+    instances:
+      creditCheck:
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 5
+        minimumNumberOfCalls: 3
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 2
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+
+  retry:
+    instances:
+      creditCheck:
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+```
+
+### Client 實作
 
 ```java
-@CircuitBreaker(name = "creditCheck", fallbackMethod = "creditCheckFallback")
-public CreditCheckResponse checkCredit(String customerId) {
-    // API call
-}
+@Service
+public class ExternalApiClient {
 
-public CreditCheckResponse creditCheckFallback(String customerId, Throwable t) {
-    // Return fallback response
+    @CircuitBreaker(name = "creditCheck", fallbackMethod = "creditCheckFallback")
+    @Retry(name = "creditCheck")
+    public CreditCheckResponse checkCredit(String customerId) {
+        return restTemplate.getForObject(
+            baseUrl + "/api/credit/" + customerId,
+            CreditCheckResponse.class
+        );
+    }
+
+    // Fallback 方法 - 保守策略：拒絕信用
+    private CreditCheckResponse creditCheckFallback(String customerId, Throwable t) {
+        log.warn("Using fallback for customer {}: {}", customerId, t.getMessage());
+        return new CreditCheckResponse(
+            customerId,
+            false,           // 不核准
+            0,               // 無額度
+            "FALLBACK",
+            "Service temporarily unavailable"
+        );
+    }
 }
 ```
 
-### 2. Retry
-
-Automatically retries failed calls with exponential backoff.
+### Toxiproxy 故障注入測試
 
 ```java
-@Retry(name = "creditCheck")
-public CreditCheckResponse checkCredit(String customerId) {
-    // API call - will be retried on failure
+@Test
+void shouldUseFallbackWhenLatencyExceedsTimeout() throws Exception {
+    // Given - 設定成功回應
+    setupSuccessStub(customerId);
+
+    // When - 注入超過逾時的延遲
+    proxy.toxics().latency("high-latency", ToxicDirection.DOWNSTREAM, 5000);
+
+    // Then - 應使用 Fallback
+    CreditDecision decision = creditCheckService.evaluate(customerId, BigDecimal.valueOf(1000));
+
+    assertThat(decision.approved()).isFalse();
+    assertThat(decision.reason()).contains("FALLBACK");
+}
+
+@Test
+void shouldRecoverAfterNetworkIssueResolved() throws Exception {
+    // Given - 注入故障
+    Toxic timeout = proxy.toxics().timeout("timeout", ToxicDirection.DOWNSTREAM, 0);
+
+    // When - 故障期間的請求
+    CreditDecision failedDecision = creditCheckService.evaluate(customerId, BigDecimal.valueOf(1000));
+    assertThat(failedDecision.approved()).isFalse();
+
+    // Then - 移除故障後恢復
+    timeout.remove();
+    setupSuccessStub(customerId);
+
+    CreditDecision recoveredDecision = creditCheckService.evaluate(customerId, BigDecimal.valueOf(1000));
+    assertThat(recoveredDecision.approved()).isTrue();
 }
 ```
 
-### 3. Fallback
+## Toxiproxy 故障類型
 
-Provides a graceful degradation path when the primary operation fails.
+| 故障類型 | 說明 | 使用場景 |
+|----------|------|----------|
+| `latency` | 增加回應延遲 | 測試逾時處理 |
+| `bandwidth` | 限制資料傳輸速率 | 測試慢網路 |
+| `timeout` | 在延遲後停止資料傳輸 | 測試連線逾時 |
+| `reset_peer` | 重置 TCP 連線 | 測試連線失敗 |
+| `slicer` | 將資料切成小塊 | 測試分片回應 |
 
-```java
-public CreditCheckResponse creditCheckFallback(String customerId, Throwable t) {
-    return new CreditCheckResponse(
-        customerId,
-        false,  // Conservative: deny credit on failure
-        0,
-        "FALLBACK",
-        "Service temporarily unavailable"
-    );
-}
-```
+## 常見問題
 
-## Toxiproxy Fault Types
+### Q1: Circuit Breaker 不開啟
+**問題**: 連續失敗但 Circuit Breaker 未開啟
+**解決**: 確認 `minimumNumberOfCalls` 和 `slidingWindowSize` 配置正確
 
-| Fault Type | Description | Use Case |
-|------------|-------------|----------|
-| `latency` | Adds delay to responses | Test timeout handling |
-| `bandwidth` | Limits data transfer rate | Test slow network |
-| `timeout` | Stops data after delay | Test connection timeout |
-| `reset_peer` | Resets TCP connection | Test connection failures |
-| `slicer` | Slices data into smaller chunks | Test fragmented responses |
+### Q2: Toxiproxy 連線失敗
+**問題**: 測試無法連接到 Toxiproxy
+**解決**: 確認 Proxy 端口映射正確，使用 `proxy.getProxyPort()`
 
-## Acceptance Criteria (US8)
+### Q3: Fallback 未被調用
+**問題**: 異常發生但 Fallback 未執行
+**解決**: 確認 Fallback 方法簽名正確（參數須包含 Throwable）
 
-This module validates the following acceptance scenarios from the specification:
+### Q4: 測試不穩定
+**問題**: 熔斷器狀態測試偶爾失敗
+**解決**: 在每個測試前重置 Circuit Breaker 狀態
 
-1. **Given** external service returns error, **When** system processes request, **Then** uses fallback response
-2. **Given** external service delays too long, **When** request times out, **Then** triggers timeout handling
-3. **Given** consecutive failures reach threshold, **When** circuit breaker opens, **Then** subsequent requests use fallback
-4. **Given** circuit breaker in half-open state, **When** request succeeds, **Then** circuit breaker closes
+## 驗收標準（US8）
 
-## Dependencies
+- ✅ 外部服務錯誤時使用 Fallback
+- ✅ 請求逾時時觸發逾時處理
+- ✅ 連續失敗達閾值時熔斷器開啟
+- ✅ 熔斷器半開狀態下請求成功時關閉熔斷器
 
-This module uses the following dependencies from `tc-common`:
+## 延伸學習
 
-- `WireMockContainerFactory` - Creates WireMock containers
-- `ToxiproxyContainerFactory` - Creates Toxiproxy containers
-- `IntegrationTestBase` - Base class with common test utilities
-
-## References
-
-- [Resilience4j Documentation](https://resilience4j.readme.io/)
-- [WireMock Documentation](https://wiremock.org/docs/)
-- [Toxiproxy Documentation](https://github.com/Shopify/toxiproxy)
+- [S6-Security](../scenario-s6-security/): OAuth2 安全測試
+- [Resilience4j 官方文件](https://resilience4j.readme.io/)
+- [WireMock 官方文件](https://wiremock.org/docs/)
+- [Toxiproxy GitHub](https://github.com/Shopify/toxiproxy)
 - [Testcontainers Toxiproxy Module](https://www.testcontainers.org/modules/toxiproxy/)

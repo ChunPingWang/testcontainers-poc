@@ -1,32 +1,126 @@
-# Scenario S4: CDC (Change Data Capture) with Debezium
+# Scenario S4: CDC (Change Data Capture) 變更資料擷取
 
-This module demonstrates Change Data Capture (CDC) patterns using PostgreSQL, Kafka, and simulated Debezium events with Testcontainers.
+## 學習目標
 
-## Overview
+完成本場景後，您將學會：
+- 理解 CDC（Change Data Capture）的運作原理
+- 使用 PostgreSQL 的 `REPLICA IDENTITY FULL` 配置
+- 處理 INSERT、UPDATE、DELETE 三種 CDC 事件
+- 驗證 CDC 事件的 before/after 狀態
+- 測試 CDC 事件的時效性（SLA）
 
-CDC captures row-level changes in the database and streams them as events. This scenario implements a financial transaction system where every INSERT, UPDATE, and DELETE operation generates a CDC event containing the before and/or after state of the row.
+## 環境需求
 
-## Components
+- Java 21+
+- Docker Desktop
+- Gradle 8.x
 
-### Domain Model
+## 概述
 
-- **Transaction**: Financial transaction entity with id, accountId, type, amount, balance, and createdAt
-- **TransactionType**: Enum with DEPOSIT, WITHDRAWAL, TRANSFER
+CDC（Change Data Capture）是一種擷取資料庫變更的技術，將每一次的 INSERT、UPDATE、DELETE 操作轉換為事件串流。本場景模擬 Debezium CDC 的行為，展示如何測試 CDC 事件處理邏輯。
 
-### CDC Infrastructure
+### CDC 的實際應用場景
+- **資料同步**：將變更同步到其他系統（如搜尋引擎、快取）
+- **審計追蹤**：記錄所有資料變更歷史
+- **事件驅動架構**：基於資料變更觸發業務流程
+- **資料湖更新**：即時更新分析資料
 
-- **CdcEventProcessor**: Kafka listener that processes CDC events and maintains event history
-- **CdcEvent**: Data structure mimicking Debezium's event format with operation, table, before/after state
+## 技術元件
 
-### Database Configuration
+| 元件 | 容器映像 | 用途 |
+|------|----------|------|
+| PostgreSQL | postgres:16-alpine | 資料來源（啟用 REPLICA IDENTITY FULL） |
+| Kafka | confluentinc/cp-kafka:7.6.0 | CDC 事件串流 |
 
-The `transactions` table is configured with `REPLICA IDENTITY FULL` to ensure complete row data is captured in UPDATE and DELETE events:
+## 核心概念
+
+### 1. REPLICA IDENTITY FULL
+
+PostgreSQL 預設只在 UPDATE/DELETE 時記錄 Primary Key，設定 `REPLICA IDENTITY FULL` 後會記錄完整列資料：
 
 ```sql
 ALTER TABLE transactions REPLICA IDENTITY FULL;
 ```
 
-## Architecture
+### 2. CDC 事件格式
+
+遵循 Debezium 格式：
+
+```json
+{
+  "operation": "UPDATE",
+  "table": "transactions",
+  "before": {
+    "id": "uuid",
+    "amount": 100.00,
+    "balance": 500.00
+  },
+  "after": {
+    "id": "uuid",
+    "amount": 100.00,
+    "balance": 600.00
+  },
+  "timestamp": 1705312200000
+}
+```
+
+### 3. 操作類型對應
+
+| 操作 | before | after | 說明 |
+|------|--------|-------|------|
+| INSERT | null | 完整列 | 新增資料 |
+| UPDATE | 完整列 | 完整列 | 修改資料 |
+| DELETE | 完整列 | null | 刪除資料 |
+
+## 教學步驟
+
+### 步驟 1：理解專案結構
+
+```
+scenario-s4-cdc/
+├── src/main/java/com/example/s4/
+│   ├── S4Application.java
+│   ├── domain/
+│   │   ├── Transaction.java         # 交易實體
+│   │   └── TransactionType.java     # 交易類型（DEPOSIT, WITHDRAWAL, TRANSFER）
+│   ├── repository/
+│   │   └── TransactionRepository.java
+│   ├── service/
+│   │   └── TransactionService.java
+│   └── cdc/
+│       ├── CdcEvent.java            # CDC 事件結構
+│       └── CdcEventProcessor.java   # CDC 事件處理器
+├── src/main/resources/
+│   ├── application.yml
+│   └── db/migration/
+│       └── V1__create_transactions_table.sql
+└── src/test/java/com/example/s4/
+    ├── S4TestApplication.java
+    ├── DebeziumCdcIT.java           # CDC 事件擷取測試
+    └── CdcSchemaChangeIT.java       # Schema 變更容錯測試
+```
+
+### 步驟 2：執行測試
+
+```bash
+# 執行所有 S4 測試
+./gradlew :scenario-s4-cdc:test
+
+# 執行特定測試類別
+./gradlew :scenario-s4-cdc:test --tests "DebeziumCdcIT"
+./gradlew :scenario-s4-cdc:test --tests "CdcSchemaChangeIT"
+
+# 帶詳細輸出
+./gradlew :scenario-s4-cdc:test --info
+```
+
+### 步驟 3：觀察 CDC 事件流
+
+1. 建立交易（INSERT）→ 產生 CDC 事件（after 有值）
+2. 更新交易（UPDATE）→ 產生 CDC 事件（before/after 都有值）
+3. 刪除交易（DELETE）→ 產生 CDC 事件（before 有值）
+
+## 系統架構
 
 ```mermaid
 flowchart LR
@@ -53,7 +147,7 @@ flowchart LR
     style Processor fill:#e0ffe0,stroke:#32cd32
 ```
 
-### CDC 事件流程
+## CDC 事件流程
 
 ```mermaid
 sequenceDiagram
@@ -82,106 +176,152 @@ sequenceDiagram
     Note over Proc: before state only
 ```
 
-In production, Debezium Connect sits between PostgreSQL and Kafka, automatically capturing changes from the WAL (Write-Ahead Log). For this PoC, we simulate CDC events to focus on testing the event processing logic.
+## 測試類別說明
 
-## CDC Event Format
+### DebeziumCdcIT - CDC 事件擷取測試
 
-Events follow Debezium's structure:
+| 測試案例 | 說明 | SLA |
+|----------|------|-----|
+| `shouldCaptureInsertEventWithinThreeSeconds` | INSERT 事件包含 after 狀態 | 3秒 |
+| `shouldCaptureUpdateEventWithBeforeAndAfterState` | UPDATE 事件包含 before/after | 3秒 |
+| `shouldCaptureDeleteEventWithBeforeState` | DELETE 事件包含 before 狀態 | 3秒 |
+| `shouldCaptureMultipleCdcOperations` | 連續操作的 CDC 事件 | - |
+| `shouldCaptureTransactionTypeInCdcEvent` | 各種交易類型的事件 | - |
 
-```json
-{
-  "operation": "INSERT|UPDATE|DELETE",
-  "table": "transactions",
-  "before": { ... },  // null for INSERT
-  "after": { ... },   // null for DELETE
-  "timestamp": 1705312200000
+### CdcSchemaChangeIT - Schema 變更容錯測試
+
+| 測試案例 | 說明 |
+|----------|------|
+| `shouldHandleEventsWithExtraFields` | 處理含額外欄位的事件 |
+| `shouldHandleEventsWithMissingFields` | 處理缺少欄位的事件 |
+| `shouldHandleNewColumnAddition` | Schema 新增欄位後的相容性 |
+| `shouldHandleDataTypeVariations` | 不同資料型別表示法 |
+| `shouldVerifyReplicaIdentityFull` | 驗證 REPLICA IDENTITY FULL 配置 |
+| `shouldIncludeAllColumnsInBeforeState` | UPDATE 時 before 包含所有欄位 |
+
+## 程式碼範例
+
+### CDC 事件結構
+
+```java
+public record CdcEvent(
+    String operation,    // INSERT, UPDATE, DELETE
+    String table,
+    Map<String, Object> before,
+    Map<String, Object> after,
+    long timestamp
+) {
+    public boolean isInsert() { return "INSERT".equals(operation); }
+    public boolean isUpdate() { return "UPDATE".equals(operation); }
+    public boolean isDelete() { return "DELETE".equals(operation); }
 }
 ```
 
-### Operation Types
+### CDC 事件處理器
 
-| Operation | Before State | After State |
-|-----------|--------------|-------------|
-| INSERT    | null         | complete row |
-| UPDATE    | complete row | complete row |
-| DELETE    | complete row | null |
+```java
+@Service
+public class CdcEventProcessor {
 
-## Test Scenarios
+    private final List<CdcEvent> receivedEvents = new CopyOnWriteArrayList<>();
 
-### DebeziumCdcIT
+    @KafkaListener(topics = "${cdc.topic}")
+    public void processCdcEvent(CdcEvent event) {
+        log.info("Received CDC event: {} on {}", event.operation(), event.table());
 
-Tests CDC event capture within the 3-second SLA (SC-012):
+        if (event.isUpdate()) {
+            // 可以比較 before 和 after 狀態
+            log.info("Before: {}", event.before());
+            log.info("After: {}", event.after());
+        }
 
-1. **shouldCaptureInsertEventWithinThreeSeconds** - Verifies INSERT events contain after-state
-2. **shouldCaptureUpdateEventWithBeforeAndAfterState** - Verifies UPDATE events contain both states
-3. **shouldCaptureDeleteEventWithBeforeState** - Verifies DELETE events contain before-state
-4. **shouldCaptureMultipleCdcOperations** - Tests sequential operations
-5. **shouldCaptureTransactionTypeInCdcEvent** - Verifies all transaction types are captured
+        receivedEvents.add(event);
+    }
 
-### CdcSchemaChangeIT
-
-Tests CDC resilience to schema evolution:
-
-1. **shouldHandleEventsWithExtraFields** - New fields don't break processing
-2. **shouldHandleEventsWithMissingFields** - Missing fields are handled gracefully
-3. **shouldHandleNewColumnAddition** - Schema migration compatibility
-4. **shouldHandleDataTypeVariations** - Different data type representations
-5. **shouldHandleTableNameChanges** - Table rename scenarios
-6. **shouldVerifyReplicaIdentityFull** - Confirms CDC configuration
-7. **shouldIncludeAllColumnsInBeforeStateForUpdate** - REPLICA IDENTITY FULL validation
-
-## Running Tests
-
-```bash
-# Run all S4 tests
-./gradlew :scenario-s4-cdc:test
-
-# Run specific test class
-./gradlew :scenario-s4-cdc:test --tests "DebeziumCdcIT"
-
-# Run with verbose output
-./gradlew :scenario-s4-cdc:test --info
+    public List<CdcEvent> getEventsForTable(String table) {
+        return receivedEvents.stream()
+            .filter(e -> table.equals(e.table()))
+            .toList();
+    }
+}
 ```
 
-## Configuration
+### CDC 測試
 
-### application.yml
+```java
+@Test
+void shouldCaptureUpdateEventWithBeforeAndAfterState() {
+    // Given - 建立交易
+    Transaction tx = transactionService.createDeposit("ACC001", new BigDecimal("100.00"));
+    BigDecimal originalBalance = tx.getBalance();
 
-```yaml
-cdc:
-  topic: cdc.transactions
-  group-id: cdc-processor
+    // When - 更新交易
+    transactionService.updateBalance(tx.getId(), new BigDecimal("150.00"));
 
-spring:
-  kafka:
-    consumer:
-      auto-offset-reset: earliest
+    // Then - 驗證 CDC 事件（3秒 SLA）
+    await().atMost(3, TimeUnit.SECONDS)
+           .until(() -> cdcProcessor.getEventsForTable("transactions")
+                                    .stream()
+                                    .anyMatch(CdcEvent::isUpdate));
+
+    CdcEvent updateEvent = cdcProcessor.getEventsForTable("transactions")
+        .stream()
+        .filter(CdcEvent::isUpdate)
+        .findFirst()
+        .orElseThrow();
+
+    // 驗證 before 狀態
+    assertThat(updateEvent.before()).containsEntry("balance", originalBalance);
+
+    // 驗證 after 狀態
+    assertThat(updateEvent.after()).containsEntry("balance", new BigDecimal("150.00"));
+}
 ```
 
-## Performance Requirements
+## 常見問題
 
-- **SC-012**: CDC events must be received within 3 seconds of the database change
-- Events are validated using `AwaitHelper.waitForCdcEvent()` which enforces the 3-second timeout
+### Q1: before 狀態為空
+**問題**: UPDATE/DELETE 事件的 before 為 null
+**解決**: 確認 `ALTER TABLE xxx REPLICA IDENTITY FULL` 已執行
 
-## Dependencies
+### Q2: CDC 事件延遲超過 SLA
+**問題**: 事件未在 3 秒內到達
+**解決**: 檢查 Kafka consumer 配置，確保 `auto.offset.reset=earliest`
 
-- Spring Boot Data JPA
-- Spring Kafka
-- PostgreSQL with REPLICA IDENTITY FULL
-- Testcontainers (PostgreSQL, Kafka)
-- tc-common (container factories and test utilities)
+### Q3: 欄位名稱不一致
+**問題**: CDC 事件的欄位名稱與實體不同
+**解決**: PostgreSQL 預設使用 snake_case，需要處理命名轉換
 
-## Production Considerations
+### Q4: 併發事件順序
+**問題**: 多個 CDC 事件的處理順序不可預期
+**解決**: 使用相同的 partition key（如 entity ID）確保順序
 
-For production Debezium deployment:
+## 效能需求
 
-1. **Debezium Connect Cluster**: Deploy Kafka Connect with Debezium PostgreSQL connector
-2. **PostgreSQL Configuration**: Enable logical replication (`wal_level = logical`)
-3. **Replication Slot**: Debezium creates a replication slot for WAL streaming
-4. **Schema Registry**: Consider Avro serialization for schema evolution
-5. **Monitoring**: Track replication lag and connector health
+- **SC-012**: CDC 事件必須在 3 秒內到達
+- 使用 `AwaitHelper.waitForCdcEvent()` 強制執行此 SLA
 
-## Related Scenarios
+## 生產環境考量
 
-- **S3-Kafka**: Basic Kafka messaging patterns
-- **S2-MultiStore**: Multi-database consistency patterns
+部署 Debezium 到生產環境需要：
+
+1. **Debezium Connect 叢集**: 部署 Kafka Connect with Debezium PostgreSQL connector
+2. **PostgreSQL 配置**: 啟用 logical replication（`wal_level = logical`）
+3. **Replication Slot**: Debezium 建立 replication slot 串流 WAL
+4. **Schema Registry**: 使用 Avro 序列化處理 schema 演進
+5. **監控**: 追蹤 replication lag 和 connector 健康狀態
+
+## 驗收標準
+
+- ✅ INSERT 事件在 3 秒內擷取（SC-012）
+- ✅ UPDATE 事件包含 before/after 狀態
+- ✅ DELETE 事件包含 before 狀態
+- ✅ Schema 變更不影響事件處理
+- ✅ REPLICA IDENTITY FULL 正確配置
+
+## 延伸學習
+
+- [S3-Kafka](../scenario-s3-kafka/): Kafka 訊息基礎
+- [Debezium 官方文件](https://debezium.io/documentation/)
+- [PostgreSQL Logical Replication](https://www.postgresql.org/docs/current/logical-replication.html)
+- [CDC 模式最佳實踐](https://debezium.io/documentation/reference/stable/connectors/postgresql.html)
