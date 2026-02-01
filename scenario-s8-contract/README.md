@@ -90,6 +90,52 @@ sequenceDiagram
     end
 ```
 
+### 4. Contract Testing vs Design by Contract
+
+雖然名稱相似，但這兩個概念有本質上的不同：
+
+| 面向 | Contract Testing (契約測試) | Design by Contract (契約式設計) |
+|------|----------------------------|--------------------------------|
+| **提出者** | Pact 社群 / ThoughtWorks | Bertrand Meyer (Eiffel 語言) |
+| **目的** | 驗證服務間 API 通訊 | 定義函式/方法的正確性條件 |
+| **範圍** | 分散式系統、微服務 | 單一程式內的函式/類別 |
+| **驗證時機** | 測試階段 (CI/CD) | 執行階段 (Runtime) |
+| **主要元素** | Consumer 期望、Provider 驗證 | 前置條件、後置條件、不變量 |
+
+**Design by Contract (DbC)** 範例：
+
+```java
+// DbC 風格：定義函式的契約條件
+public class BankAccount {
+    private BigDecimal balance;
+
+    /**
+     * @pre amount > 0 (前置條件)
+     * @pre balance >= amount (前置條件)
+     * @post balance == old(balance) - amount (後置條件)
+     */
+    public void withdraw(BigDecimal amount) {
+        assert amount.compareTo(BigDecimal.ZERO) > 0 : "Amount must be positive";
+        assert balance.compareTo(amount) >= 0 : "Insufficient balance";
+
+        BigDecimal oldBalance = balance;
+        balance = balance.subtract(amount);
+
+        assert balance.equals(oldBalance.subtract(amount)) : "Post-condition violated";
+    }
+}
+```
+
+**Contract Testing** 關注的是：
+- 「Consumer 期望 Provider 回傳什麼格式的資料？」
+- 「Provider 是否滿足所有 Consumer 的期望？」
+
+**Design by Contract** 關注的是：
+- 「呼叫這個方法前，必須滿足什麼條件？」
+- 「方法執行後，保證會達成什麼狀態？」
+
+兩者可以互補：在微服務架構中使用 Contract Testing 確保服務間通訊，在各服務內部使用 DbC 原則確保程式邏輯正確。
+
 ## 教學步驟
 
 ### 步驟 1：理解專案結構
