@@ -7,6 +7,7 @@ import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobStorageException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
@@ -17,8 +18,10 @@ import java.util.Optional;
 /**
  * Service for Azure Blob Storage operations.
  * Provides upload, download, delete, and list operations for blobs.
+ * Only activated when BlobServiceClient bean is present.
  */
 @Service
+@ConditionalOnBean(BlobServiceClient.class)
 public class BlobStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(BlobStorageService.class);

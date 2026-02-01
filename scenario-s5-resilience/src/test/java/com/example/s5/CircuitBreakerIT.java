@@ -212,11 +212,16 @@ class CircuitBreakerIT extends IntegrationTestBase {
                 .atMost(Duration.ofSeconds(10))
                 .until(() -> circuitBreaker.getState() == CircuitBreaker.State.HALF_OPEN);
 
-        // When - Make a call that fails
-        externalApiClient.checkCredit(customerId);
+        // When - Make failing calls (permittedNumberOfCallsInHalfOpenState=2)
+        // Need to make enough calls for the circuit breaker to evaluate and transition
+        for (int i = 0; i < 2; i++) {
+            externalApiClient.checkCredit(customerId);
+        }
 
-        // Then - Should go back to OPEN
-        assertThat(circuitBreaker.getState()).isEqualTo(CircuitBreaker.State.OPEN);
+        // Then - Should go back to OPEN (state transition may be asynchronous)
+        await()
+                .atMost(Duration.ofSeconds(2))
+                .until(() -> circuitBreaker.getState() == CircuitBreaker.State.OPEN);
     }
 
     @Test

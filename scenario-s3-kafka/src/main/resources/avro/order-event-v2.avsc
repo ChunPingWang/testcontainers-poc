@@ -1,6 +1,6 @@
 {
   "type": "record",
-  "name": "OrderEventV2",
+  "name": "OrderEvent",
   "namespace": "com.example.s3.avro",
   "doc": "Order event schema version 2 - backward compatible with v1",
   "fields": [

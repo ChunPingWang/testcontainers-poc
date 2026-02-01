@@ -215,7 +215,10 @@ class SchemaEvolutionIT extends BaseKafkaIT {
         String subject = "order-events-incompatible-test-value";
         schemaRegistryClient.register(subject, new AvroSchema(orderEventSchemaV1));
 
-        // Create an incompatible schema (removing a required field)
+        // Create an incompatible schema (adding a required field without default)
+        // In BACKWARD compatibility, new consumers must be able to read old data.
+        // Adding a required field without default makes it impossible to read old data
+        // (old records don't have this field), so it's BACKWARD INCOMPATIBLE.
         String incompatibleSchemaJson = """
             {
               "type": "record",
@@ -223,15 +226,18 @@ class SchemaEvolutionIT extends BaseKafkaIT {
               "namespace": "com.example.s3.avro",
               "fields": [
                 {"name": "orderId", "type": "string"},
+                {"name": "customerId", "type": "string"},
+                {"name": "amount", "type": "double"},
                 {"name": "status", "type": {"type": "enum", "name": "OrderStatus",
                     "symbols": ["CREATED", "CONFIRMED", "SHIPPED", "DELIVERED", "CANCELLED"]}},
-                {"name": "timestamp", "type": "long"}
+                {"name": "timestamp", "type": "long"},
+                {"name": "requiredNewField", "type": "string"}
               ]
             }
             """;
         Schema incompatibleSchema = new Schema.Parser().parse(incompatibleSchemaJson);
 
-        // When/Then - Should not be compatible
+        // When/Then - Should not be compatible (adding required field is backward incompatible)
         boolean isCompatible = schemaRegistryClient.testCompatibility(
             subject, new AvroSchema(incompatibleSchema));
         assertThat(isCompatible).isFalse();

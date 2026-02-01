@@ -286,9 +286,13 @@ public class DynamoDbService {
         Map<String, AttributeValue> expressionValues = new HashMap<>();
         expressionValues.put(":pk", partitionKeyValue);
 
+        Map<String, String> expressionNames = new HashMap<>();
+        expressionNames.put("#pk", partitionKeyName);
+
         QueryRequest request = QueryRequest.builder()
             .tableName(tableName)
-            .keyConditionExpression(partitionKeyName + " = :pk")
+            .keyConditionExpression("#pk = :pk")
+            .expressionAttributeNames(expressionNames)
             .expressionAttributeValues(expressionValues)
             .build();
 
@@ -314,10 +318,14 @@ public class DynamoDbService {
         Map<String, AttributeValue> expressionValues = new HashMap<>();
         expressionValues.put(":pk", partitionKeyValue);
 
+        Map<String, String> expressionNames = new HashMap<>();
+        expressionNames.put("#pk", partitionKeyName);
+
         QueryRequest request = QueryRequest.builder()
             .tableName(tableName)
             .indexName(indexName)
-            .keyConditionExpression(partitionKeyName + " = :pk")
+            .keyConditionExpression("#pk = :pk")
+            .expressionAttributeNames(expressionNames)
             .expressionAttributeValues(expressionValues)
             .build();
 

@@ -46,6 +46,7 @@ public final class AzuriteContainerFactory {
     private static GenericContainer<?> createContainer() {
         return new GenericContainer<>(DockerImageName.parse(IMAGE))
             .withExposedPorts(BLOB_PORT, QUEUE_PORT, TABLE_PORT)
+            .withCommand("azurite", "--blobHost", "0.0.0.0", "--queueHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck")
             .withReuse(true);
     }
 
